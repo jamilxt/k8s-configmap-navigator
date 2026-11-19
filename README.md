@@ -4,6 +4,24 @@ A universal JetBrains IDE plugin that helps developers **find usages** and **nav
 
 Works on **IntelliJ IDEA (Community & Ultimate)**, **PyCharm**, **GoLand**, **WebStorm**, **Rider**, **PhpStorm**, and **RustRover** (2024.3+).
 
+## Preview Video
+
+[![Watch K8s ConfigMap Navigator Preview](https://img.youtube.com/vi/3t2AouwuHWA/hqdefault.jpg)](https://youtu.be/3t2AouwuHWA)
+
+▶ **[Watch the 16-second demo on YouTube](https://youtu.be/3t2AouwuHWA)**
+
+## Screenshots
+
+### 1. ConfigMap → Application Usages
+Gutter icons, `Ctrl+Click`, and native `Alt+F7` Find Usages across Java, Kotlin, Python, Go, Node.js, and YAML with relaxed binding:
+
+![ConfigMap to Application Usages](docs/screenshots/01-configmap-to-usages.jpg)
+
+### 2. Code → Kubernetes ConfigMap Definitions
+Jump directly from application code or config files to matching `prod` & `staging` ConfigMap keys with namespace and live value previews:
+
+![Code to Kubernetes ConfigMap Definitions](docs/screenshots/02-code-to-configmap.jpg)
+
 ## Supported Ecosystems
 
 - **Java & Kotlin (Spring Boot, Quarkus, Micronaut)**:
@@ -43,3 +61,8 @@ Works on **IntelliJ IDEA (Community & Ultimate)**, **PyCharm**, **GoLand**, **We
 # Publish to JetBrains Marketplace (requires PUBLISH_TOKEN env var)
 ./gradlew publishPlugin
 ```
+
+## Privacy & License
+
+- **Privacy**: 100% local inside your IDE — zero telemetry or network calls. See [PRIVACY.md](PRIVACY.md).
+- **License**: [MIT](LICENSE)
