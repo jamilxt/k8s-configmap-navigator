@@ -4,12 +4,6 @@ A universal JetBrains IDE plugin that helps developers **find usages** and **nav
 
 Works on **IntelliJ IDEA (Community & Ultimate)**, **PyCharm**, **GoLand**, **WebStorm**, **Rider**, **PhpStorm**, and **RustRover** (2024.3+).
 
-## Preview Video
-
-[![Watch K8s ConfigMap Navigator Preview](https://img.youtube.com/vi/3t2AouwuHWA/hqdefault.jpg)](https://youtu.be/3t2AouwuHWA)
-
-▶ **[Watch the 16-second demo on YouTube](https://youtu.be/3t2AouwuHWA)**
-
 ## Screenshots
 
 ### 1. ConfigMap → Application Usages
