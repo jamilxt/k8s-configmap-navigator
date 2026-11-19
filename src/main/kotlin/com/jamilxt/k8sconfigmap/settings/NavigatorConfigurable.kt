@@ -1,8 +1,8 @@
 package com.jamilxt.k8sconfigmap.settings
 
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
@@ -11,6 +11,7 @@ import com.intellij.ui.components.JBList
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.FileContentUtilCore
 import javax.swing.DefaultListModel
 import javax.swing.JPanel
 
@@ -131,7 +132,10 @@ class NavigatorConfigurable(private val project: Project) : BoundConfigurable("K
         settings.matchApplicationPropertyOverrides = matchOverrides
         settings.matchSystemGetEnv = matchSystemGetEnv
         settings.enableRelaxedBinding = enableRelaxedBinding
-        DaemonCodeAnalyzer.getInstance(project).restart()
+        val openFiles = FileEditorManager.getInstance(project).openFiles
+        if (openFiles.isNotEmpty()) {
+            FileContentUtilCore.reparseFiles(openFiles.toList())
+        }
     }
 
     override fun reset() {
