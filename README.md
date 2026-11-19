@@ -1,5 +1,7 @@
 # K8s ConfigMap Navigator
 
+![K8s ConfigMap Navigator](docs/screenshots/banner.jpg)
+
 A universal JetBrains IDE plugin that helps developers **find usages** and **navigate bidirectionally** between Kubernetes `ConfigMap` YAML keys and application code across any stack.
 
 Works on **IntelliJ IDEA (Community & Ultimate)**, **PyCharm**, **GoLand**, **WebStorm**, **Rider**, **PhpStorm**, and **RustRover** (2024.3+).
