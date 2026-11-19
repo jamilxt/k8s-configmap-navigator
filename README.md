@@ -42,6 +42,28 @@ Jump directly from application code or config files to matching `prod` & `stagin
 - **Native Find Usages (`Alt+F7`)**: Invoke Find Usages directly on any `ConfigMap` `data:` key.
 - **Monorepo & Multi-Repo**: Configure external Kubernetes ConfigMap or application directories under **Settings → Tools → K8s ConfigMap Navigator**.
 
+## Installation
+
+### Option 1: JetBrains Marketplace
+1. Open your JetBrains IDE (**IntelliJ IDEA**, **PyCharm**, **GoLand**, **WebStorm**, **Rider**, **PhpStorm**, or **RustRover**).
+2. Go to **Settings / Preferences → Plugins → Marketplace**.
+3. Search for **K8s ConfigMap Navigator** and click **Install**.
+
+### Option 2: Install Manually from GitHub Releases
+1. Download the latest plugin `.zip` from the [GitHub Releases](https://github.com/jamilxt/k8s-configmap-navigator/releases/latest) page.
+2. Open your JetBrains IDE and go to **Settings / Preferences → Plugins**.
+3. Click the **⚙️ (gear icon)** → **Install Plugin from Disk...**
+4. Select the downloaded `.zip` file and click **OK**.
+
+### Option 3: Build & Install Locally from Source
+Requires **JDK 21+**:
+```bash
+git clone https://github.com/jamilxt/k8s-configmap-navigator.git
+cd k8s-configmap-navigator
+./gradlew buildPlugin
+```
+Then install the generated ZIP from `build/distributions/k8s-configmap-spring-navigator-*.zip` via **Settings → Plugins → ⚙️ → Install Plugin from Disk...** (or run `./gradlew runIde` to test in a sandboxed IDE).
+
 ## Development & Publishing
 
 ```bash
