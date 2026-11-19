@@ -1,0 +1,11 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.jamilxt.k8s-configmap-navigator">
+        <usageScanner implementation="com.jamilxt.k8sconfigmap.index.JvmUastUsageScanner"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <codeInsight.lineMarkerProvider
+                language="UAST"
+                implementationClass="com.jamilxt.k8sconfigmap.navigation.SpringCodeToConfigMapLineMarkerProvider"/>
+    </extensions>
+</idea-plugin>

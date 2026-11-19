@@ -1,0 +1,60 @@
+<idea-plugin>
+    <id>com.jamilxt.k8s-configmap-navigator</id>
+    <name>K8s ConfigMap Navigator</name>
+    <vendor email="opensource@jamilxt.com" url="https://github.com/jamilxt">jamilxt</vendor>
+
+    <description><![CDATA[
+    Find usages and navigate bidirectionally between Kubernetes <code>ConfigMap</code> YAML keys and your application code across any JetBrains IDE (IntelliJ IDEA, PyCharm, GoLand, WebStorm, Rider, PhpStorm, RustRover).
+    <ul>
+        <li><b>Multi-Language &amp; Multi-Framework:</b> Spring Boot (<code>@Value</code>, <code>@ConfigurationProperties</code>, <code>Environment.getProperty</code>, <code>application.yml</code>/<code>.properties</code>), Quarkus/MicroProfile (<code>@ConfigProperty</code>), Micronaut, Node.js/TypeScript (<code>process.env</code>, <code>import.meta.env</code>), Python (<code>os.getenv</code>, <code>os.environ</code>), Go (<code>os.Getenv</code>, <code>viper</code>), C#/.NET, Rust, PHP, Ruby, and <code>.env</code> / TOML / JSON / YAML configs.</li>
+        <li><b>Relaxed Binding Support:</b> Automatically matches <code>MY_APP_CONNECT_TIMEOUT</code> &harr; <code>my.app.connect-timeout</code>, <code>my.app.connectTimeout</code>, and <code>my.list[0].name</code>.</li>
+        <li><b>Bidirectional Navigation &amp; Find Usages:</b> Gutter icons, <code>Ctrl+Click</code> / <code>Cmd+Click</code>, and native <code>Alt+F7</code> Find Usages directly from ConfigMap keys.</li>
+        <li><b>Monorepo &amp; Multi-Repo:</b> Automatically scans your project and supports configurable external Kubernetes/GitOps or application directories.</li>
+    </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.yaml</depends>
+
+    <depends optional="true" config-file="k8s-configmap-java.xml">com.intellij.java</depends>
+    <depends optional="true" config-file="k8s-configmap-properties.xml">com.intellij.properties</depends>
+    <depends optional="true">org.jetbrains.kotlin</depends>
+
+    <extensionPoints>
+        <extensionPoint
+                name="usageScanner"
+                interface="com.jamilxt.k8sconfigmap.index.UsageScanner"
+                dynamic="true"/>
+    </extensionPoints>
+
+    <extensions defaultExtensionNs="com.jamilxt.k8s-configmap-navigator">
+        <usageScanner implementation="com.jamilxt.k8sconfigmap.index.UniversalCodeUsageScanner"/>
+        <usageScanner implementation="com.jamilxt.k8sconfigmap.index.YamlConfigUsageScanner"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <projectConfigurable
+                parentId="tools"
+                instance="com.jamilxt.k8sconfigmap.settings.NavigatorConfigurable"
+                id="com.jamilxt.k8sconfigmap.settings.NavigatorConfigurable"
+                displayName="K8s ConfigMap Navigator"/>
+
+        <codeInsight.lineMarkerProvider
+                language="yaml"
+                implementationClass="com.jamilxt.k8sconfigmap.navigation.ConfigMapToSpringLineMarkerProvider"/>
+
+        <codeInsight.lineMarkerProvider
+                language="yaml"
+                implementationClass="com.jamilxt.k8sconfigmap.navigation.SpringYamlToConfigMapLineMarkerProvider"/>
+
+        <codeInsight.lineMarkerProvider
+                language=""
+                implementationClass="com.jamilxt.k8sconfigmap.navigation.UniversalCodeToConfigMapLineMarkerProvider"/>
+
+        <gotoDeclarationHandler
+                implementation="com.jamilxt.k8sconfigmap.navigation.ConfigMapGotoDeclarationHandler"/>
+
+        <referencesSearch
+                implementation="com.jamilxt.k8sconfigmap.navigation.ConfigMapKeyReferencesSearch"/>
+    </extensions>
+</idea-plugin>
