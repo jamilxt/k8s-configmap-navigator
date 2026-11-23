@@ -51,6 +51,7 @@ intellijPlatform {
         changeNotes = """
             <h3>1.0.2</h3>
             <ul>
+                <li>Added <b>Add to K8s ConfigMap...</b> right-click context menu action and <code>+</code> gutter icon on missing config variables, with automatic <code>UPPER_SNAKE_CASE</code> conversion, default value pre-fill, multi-ConfigMap selection, and full Undo support.</li>
                 <li>Added support for method-level <code>@ConfigurationProperties</code> on <code>@Bean</code> factory methods, including bidirectional gutter icons, Go to Declaration, Find Usages, and field-level resolution on the returned config class.</li>
             </ul>
             <h3>1.0.1</h3>

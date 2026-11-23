@@ -4,6 +4,7 @@ All notable changes to **K8s ConfigMap Navigator** will be documented in this fi
 
 ## [1.0.2] - 2026-11-23
 ### Added
+- **Add to K8s ConfigMap (Context Menu & `+` Gutter Icon):** Right-click on any config variable (including `@Value`, `@ConfigurationProperties`, `@ConfigProperty`, `Environment.getProperty`, `System.getenv`, etc.) or click the muted blue `+` gutter icon on missing properties to add them directly to one or more Kubernetes `ConfigMap` YAML files with automatic `UPPER_SNAKE_CASE` conversion, default value pre-fill, multi-ConfigMap selection, and full `Ctrl+Z` undo support.
 - Support for method-level `@ConfigurationProperties` on `@Bean` factory methods: bidirectional gutter icons, `Ctrl+Click` Go to Declaration, and `Alt+F7` Find Usages between Kubernetes `ConfigMap` keys, `@Bean` methods, and the returned configuration class fields (including nested classes and compiled/setter-based types).
 
 ## [1.0.1] - 2026-11-19
