@@ -2,6 +2,10 @@
 
 All notable changes to **K8s ConfigMap Navigator** will be documented in this file.
 
+## [1.0.2] - 2026-11-23
+### Added
+- Support for method-level `@ConfigurationProperties` on `@Bean` factory methods: bidirectional gutter icons, `Ctrl+Click` Go to Declaration, and `Alt+F7` Find Usages between Kubernetes `ConfigMap` keys, `@Bean` methods, and the returned configuration class fields (including nested classes and compiled/setter-based types).
+
 ## [1.0.1] - 2026-11-19
 ### Fixed
 - Removed unused `org.jetbrains.kotlin` plugin dependency from `plugin.xml` (Kotlin `.kt` files continue to work via UAST) to eliminate JetBrains Marketplace descriptor warnings.
