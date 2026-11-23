@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.jamilxt.k8sconfigmap"
-version = "1.0.1"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
@@ -49,6 +49,10 @@ intellijPlatform {
         name = "K8s ConfigMap Navigator"
         version = project.version.toString()
         changeNotes = """
+            <h3>1.0.2</h3>
+            <ul>
+                <li>Added support for method-level <code>@ConfigurationProperties</code> on <code>@Bean</code> factory methods, including bidirectional gutter icons, Go to Declaration, Find Usages, and field-level resolution on the returned config class.</li>
+            </ul>
             <h3>1.0.1</h3>
             <ul>
                 <li>Removed unused Kotlin plugin dependency and replaced deprecated <code>DaemonCodeAnalyzer.restart()</code> for full IntelliJ 2024.3–2025.3+ compatibility.</li>

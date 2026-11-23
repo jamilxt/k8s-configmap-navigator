@@ -10,6 +10,7 @@ import com.jamilxt.k8sconfigmap.settings.NavigatorSettings
 import org.jetbrains.uast.UAnnotation
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UField
+import org.jetbrains.uast.UMethod
 import org.jetbrains.uast.evaluateString
 import org.jetbrains.uast.toUElement
 
@@ -40,9 +41,18 @@ class SpringCodeToConfigMapLineMarkerProvider : RelatedItemLineMarkerProvider() 
 
             is UField -> {
                 if (uElement.isStatic) return
-                val fullKey = JvmUastUsageScanner.resolveConfigPropertiesFieldKey(uElement) ?: return
+                val fullKeys = JvmUastUsageScanner.resolveConfigPropertiesFieldKeys(uElement)
+                if (fullKeys.isEmpty()) return
                 val anchor = uElement.uastAnchor?.sourcePsi ?: element
-                ConfigMapMarkerHelper.buildMarkerForKeys(PsiTreeUtil.getDeepestFirst(anchor), listOf(fullKey))
+                ConfigMapMarkerHelper.buildMarkerForKeys(PsiTreeUtil.getDeepestFirst(anchor), fullKeys)
+                    ?.let { result.add(it) }
+            }
+
+            is UMethod -> {
+                val fullKeys = JvmUastUsageScanner.resolveBeanConfigPropertiesKeys(uElement)
+                if (fullKeys.isEmpty()) return
+                val anchor = uElement.uastAnchor?.sourcePsi ?: element
+                ConfigMapMarkerHelper.buildMarkerForKeys(PsiTreeUtil.getDeepestFirst(anchor), fullKeys)
                     ?.let { result.add(it) }
             }
 

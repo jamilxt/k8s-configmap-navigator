@@ -44,6 +44,18 @@ class ConfigMapNavigationIntegrationTest : LightJavaCodeInsightFixtureTestCase()
             }
             """.trimIndent()
         )
+        myFixture.addClass(
+            """
+            package org.springframework.context.annotation;
+            public @interface Bean {}
+            """.trimIndent()
+        )
+        myFixture.addClass(
+            """
+            package org.springframework.context.annotation;
+            public @interface Configuration {}
+            """.trimIndent()
+        )
     }
 
     fun testConfigMapToSpringNavigationAndFindUsages() {
@@ -254,5 +266,91 @@ class ConfigMapNavigationIntegrationTest : LightJavaCodeInsightFixtureTestCase()
             NavigatorSettings.getInstance(project).externalConfigMapPaths = emptyList()
             tempDir.toFile().deleteRecursively()
         }
+    }
+
+    fun testBeanMethodConfigurationPropertiesNavigation() {
+        val configMapFile = myFixture.configureByText(
+            "online-shop-cm.yaml",
+            """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: online-shop-config
+            data:
+              ONLINE_SHOP_SHOPARU_TYPE: "Shoparu"
+              ONLINE_SHOP_SHOPARU_URL: "https://shoparu.example.com"
+              ONLINE_SHOP_GP_TYPE: "GP Online Shop"
+              ONLINE_SHOP_GP_EXPIRY: "120"
+            """.trimIndent()
+        )
+
+        myFixture.addFileToProject(
+            "src/OnlineServiceConfig.java",
+            """
+            import org.springframework.boot.context.properties.ConfigurationProperties;
+            import org.springframework.context.annotation.Configuration;
+
+            @Configuration
+            @ConfigurationProperties(prefix = "online.service")
+            public class OnlineServiceConfig {
+                private String type;
+                private String key;
+                private String url;
+                private String channel;
+                private Long expiry;
+            }
+            """.trimIndent()
+        )
+
+        myFixture.addFileToProject(
+            "src/OnlineServiceProperties.java",
+            """
+            import org.springframework.boot.context.properties.ConfigurationProperties;
+            import org.springframework.context.annotation.Bean;
+            import org.springframework.context.annotation.Configuration;
+
+            @Configuration
+            public class OnlineServiceProperties {
+                @Bean
+                @ConfigurationProperties(prefix = "online.shop.shoparu")
+                public OnlineServiceConfig shoparuConfig() {
+                    return new OnlineServiceConfig();
+                }
+
+                @Bean
+                @ConfigurationProperties(prefix = "online.shop.gp")
+                public OnlineServiceConfig gpShopConfig() {
+                    return new OnlineServiceConfig();
+                }
+            }
+            """.trimIndent()
+        )
+
+        // Direction 1: ConfigMap -> @Bean method & return type field
+        val usageIndex = UsageIndexService.getInstance(project)
+        val shoparuTypeUsages = usageIndex.findUsagesForConfigMapKey("ONLINE_SHOP_SHOPARU_TYPE")
+        assertEquals("Expected bean method and field usages", 2, shoparuTypeUsages.size)
+
+        val gpExpiryUsages = usageIndex.findUsagesForConfigMapKey("ONLINE_SHOP_GP_EXPIRY")
+        assertEquals("Expected bean method and field usages", 2, gpExpiryUsages.size)
+
+        val yamlKeyValues = PsiTreeUtil.findChildrenOfType(configMapFile, YAMLKeyValue::class.java)
+        val shoparuTypeKv = yamlKeyValues.first { it.keyText == "ONLINE_SHOP_SHOPARU_TYPE" }
+        val refs = ReferencesSearch.search(shoparuTypeKv).findAll()
+        assertEquals(2, refs.size)
+
+        val cmGutters = myFixture.findAllGutters()
+        assertEquals("Expected gutter icons on all 4 ConfigMap keys", 4, cmGutters.size)
+
+        // Direction 2a: @Bean @ConfigurationProperties method -> ConfigMap
+        myFixture.configureByFile("src/OnlineServiceProperties.java")
+        val beanGutters = myFixture.findAllGutters()
+        assertTrue("Expected gutter icons on @Bean @ConfigurationProperties methods", beanGutters.size >= 2)
+
+        // Direction 2b: Return type class fields -> ConfigMap
+        myFixture.configureByFile("src/OnlineServiceConfig.java")
+        val configClassGutters = myFixture.findAllGutters()
+        // type (2 matches), url (1 match), expiry (1 match) => 3 fields with gutter icons
+        assertTrue("Expected gutter icons on OnlineServiceConfig fields (type, url, expiry)", configClassGutters.size >= 3)
     }
 }
