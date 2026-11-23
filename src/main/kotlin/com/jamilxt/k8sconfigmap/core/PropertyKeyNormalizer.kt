@@ -13,7 +13,7 @@ package com.jamilxt.k8sconfigmap.core
  */
 object PropertyKeyNormalizer {
 
-    private val PLACEHOLDER_REGEX = Regex("""\$\{([^}:]+)(?::[^}]*)?}""")
+    private val PLACEHOLDER_REGEX = Regex("""\$\{([^}:]+)(?::([^}]*))?}""")
     private val ARRAY_INDEX_REGEX = Regex("""\[(\d+)]""")
     private val SEPARATOR_REGEX = Regex("""[._\-/\s]+""")
 
@@ -28,6 +28,31 @@ object PropertyKeyNormalizer {
             .filter { it.isNotEmpty() }
             .distinct()
             .toList()
+    }
+
+    /**
+     * Extracts `${key}` and `${key:defaultValue}` pairs from a string.
+     */
+    fun extractPlaceholdersWithDefaults(text: String): List<Pair<String, String?>> {
+        if (!text.contains("\${")) return emptyList()
+        val seen = linkedMapOf<String, String?>()
+        for (match in PLACEHOLDER_REGEX.findAll(text)) {
+            val key = match.groupValues[1].trim()
+            if (key.isEmpty()) continue
+            val defaultGroup = match.groups[2]?.value
+            seen.putIfAbsent(key, defaultGroup)
+        }
+        return seen.entries.map { it.key to it.value }
+    }
+
+    /**
+     * Converts any property key (e.g. `my.app.connect-timeout`, `my.app.connectTimeout`, `my.list[0].name`)
+     * into Kubernetes ConfigMap `UPPER_SNAKE_CASE` format (e.g. `MY_APP_CONNECT_TIMEOUT`, `MY_LIST_0_NAME`).
+     */
+    fun toEnvVarKey(rawKey: String): String {
+        val tokens = tokenize(rawKey)
+        if (tokens.isEmpty()) return rawKey.trim().uppercase()
+        return tokens.joinToString("_") { it.uppercase() }
     }
 
     /**
