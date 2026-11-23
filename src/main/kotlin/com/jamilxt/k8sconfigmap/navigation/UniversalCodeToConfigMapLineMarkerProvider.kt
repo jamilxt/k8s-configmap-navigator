@@ -36,11 +36,15 @@ class UniversalCodeToConfigMapLineMarkerProvider : RelatedItemLineMarkerProvider
         }
         if (matches.isEmpty()) return
 
+        val isConfigFile = UniversalCodePatterns.isDotEnvFile(vf.name) ||
+            vf.extension?.lowercase() in UniversalCodePatterns.SUPPORTED_CONFIG_EXTENSIONS
+
         val markedLeaves = HashSet<PsiElement>()
         for (match in matches) {
             val leaf = psiFile.findElementAt(match.keyStartOffset) ?: continue
             if (!markedLeaves.add(leaf)) continue
-            ConfigMapMarkerHelper.buildMarkerForKeys(leaf, listOf(match.key))?.let { result.add(it) }
+            ConfigMapMarkerHelper.buildMarkerForKeys(leaf, listOf(match.key), allowAddMarker = !isConfigFile)
+                ?.let { result.add(it) }
         }
     }
 }

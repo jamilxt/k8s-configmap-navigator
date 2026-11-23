@@ -27,6 +27,7 @@ import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
 import org.jetbrains.uast.UFile
 import org.jetbrains.uast.UMethod
+import org.jetbrains.uast.UParameter
 import org.jetbrains.uast.evaluateString
 import org.jetbrains.uast.getParentOfType
 import org.jetbrains.uast.toUElement
@@ -108,8 +109,16 @@ class JvmUastUsageScanner : UsageScanner {
 
         val field = uElement.getParentOfType(UField::class.java, false)
         if (field != null && !field.isStatic) {
+            val annotatedKeys = extractKeysFromAnnotations(field.uAnnotations)
+            if (annotatedKeys.isNotEmpty()) return annotatedKeys
             val keys = resolveConfigPropertiesFieldKeys(field)
             if (keys.isNotEmpty()) return keys
+        }
+
+        val param = uElement.getParentOfType(UParameter::class.java, false)
+        if (param != null) {
+            val annotatedKeys = extractKeysFromAnnotations(param.uAnnotations)
+            if (annotatedKeys.isNotEmpty()) return annotatedKeys
         }
 
         val method = uElement.getParentOfType(UMethod::class.java, false)
@@ -119,6 +128,73 @@ class JvmUastUsageScanner : UsageScanner {
         }
 
         return emptyList()
+    }
+
+    override fun extractDefaultValueAtElement(element: PsiElement, offset: Int, settings: NavigatorSettings): String? {
+        val uElement = element.toUElement() ?: element.parent?.toUElement() ?: return null
+
+        val annotation = uElement.getParentOfType(UAnnotation::class.java, false)
+        if (annotation != null) {
+            extractDefaultFromAnnotation(annotation)?.let { return it }
+        }
+
+        val call = uElement.getParentOfType(UCallExpression::class.java, false)
+        if (call != null && call.valueArguments.size >= 2) {
+            val methodName = call.methodName
+            val isEnvOrSys = ((methodName == "getProperty") && isEnvironmentReceiver(call)) ||
+                ((methodName == "getProperty") && settings.matchSystemGetEnv && isSystemReceiver(call))
+            if (isEnvOrSys) {
+                call.valueArguments[1].evaluateString()?.let { return it }
+            }
+        }
+
+        val field = uElement.getParentOfType(UField::class.java, false)
+        if (field != null && !field.isStatic) {
+            for (ann in field.uAnnotations) {
+                extractDefaultFromAnnotation(ann)?.let { return it }
+            }
+            val initVal = field.uastInitializer?.evaluate()
+            if (initVal != null) return initVal.toString()
+        }
+
+        val param = uElement.getParentOfType(UParameter::class.java, false)
+        if (param != null) {
+            for (ann in param.uAnnotations) {
+                extractDefaultFromAnnotation(ann)?.let { return it }
+            }
+        }
+
+        return null
+    }
+
+    private fun extractKeysFromAnnotations(annotations: List<UAnnotation>): List<String> {
+        val keys = LinkedHashSet<String>()
+        for (ann in annotations) {
+            if (isValueAnnotation(ann)) {
+                val expr = ann.findAttributeValue("value")
+                    ?: ann.attributeValues.firstOrNull()?.expression
+                val rawText = expr?.evaluateString()
+                if (rawText != null) keys.addAll(PropertyKeyNormalizer.extractPlaceholders(rawText))
+            } else if (isConfigPropertyAnnotation(ann)) {
+                val name = ann.findDeclaredAttributeValue("name")?.evaluateString()
+                if (!name.isNullOrBlank()) keys.add(name.trim())
+            }
+        }
+        return keys.toList()
+    }
+
+    private fun extractDefaultFromAnnotation(annotation: UAnnotation): String? {
+        if (isValueAnnotation(annotation)) {
+            val expr = annotation.findAttributeValue("value")
+                ?: annotation.attributeValues.firstOrNull()?.expression
+            val rawText = expr?.evaluateString() ?: return null
+            return PropertyKeyNormalizer.extractPlaceholdersWithDefaults(rawText)
+                .firstOrNull { it.second != null }?.second
+        }
+        if (isConfigPropertyAnnotation(annotation)) {
+            return annotation.findDeclaredAttributeValue("defaultValue")?.evaluateString()
+        }
+        return null
     }
 
     private fun scanUastFile(

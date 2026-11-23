@@ -53,6 +53,15 @@ class UsageIndexService(private val project: Project) {
         return keys.toList()
     }
 
+    fun extractDefaultValueAtElement(element: PsiElement, offset: Int): String? {
+        val settings = NavigatorSettings.getInstance(project)
+        for (scanner in UsageScanner.EP_NAME.extensionList) {
+            val value = scanner.extractDefaultValueAtElement(element, offset, settings)
+            if (value != null) return value
+        }
+        return null
+    }
+
     private fun buildIndex(settings: NavigatorSettings): Map<String, List<ProjectUsage>> {
         val externalRoots = settings.externalProjectPaths.mapNotNull { pathStr ->
             try {

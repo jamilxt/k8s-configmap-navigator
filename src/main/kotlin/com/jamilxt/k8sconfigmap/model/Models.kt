@@ -3,6 +3,7 @@ package com.jamilxt.k8sconfigmap.model
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.SmartPsiElementPointer
+import org.jetbrains.yaml.psi.YAMLDocument
 import org.jetbrains.yaml.psi.YAMLKeyValue
 
 enum class UsageKind(val label: String) {
@@ -29,6 +30,19 @@ data class ConfigMapEntry(
     fun displayName(): String {
         val nsPrefix = if (!namespace.isNullOrBlank()) "$namespace/" else ""
         return "$nsPrefix$configMapName ($key)"
+    }
+}
+
+data class ConfigMapTarget(
+    val name: String,
+    val namespace: String?,
+    val virtualFile: VirtualFile,
+    val documentPointer: SmartPsiElementPointer<YAMLDocument>,
+    val existingKeys: Map<String, String>
+) {
+    fun displayName(): String {
+        val nsPrefix = if (!namespace.isNullOrBlank()) "$namespace/" else ""
+        return "$nsPrefix$name"
     }
 }
 

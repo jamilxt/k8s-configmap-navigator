@@ -8,5 +8,8 @@ object PluginIcons {
     val ConfigMap: Icon = IconLoader.getIcon("/icons/configmap.svg", PluginIcons::class.java)
 
     @JvmField
+    val ConfigMapAdd: Icon = IconLoader.getIcon("/icons/configmap_add.svg", PluginIcons::class.java)
+
+    @JvmField
     val Spring: Icon = IconLoader.getIcon("/icons/spring.svg", PluginIcons::class.java)
 }
