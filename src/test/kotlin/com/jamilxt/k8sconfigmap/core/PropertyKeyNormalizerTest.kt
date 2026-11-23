@@ -58,4 +58,28 @@ class PropertyKeyNormalizerTest {
         assertEquals(expected, PropertyKeyNormalizer.tokenize("my.app.connectTimeout"))
         assertEquals(expected, PropertyKeyNormalizer.tokenize("my.app.connect_timeout"))
     }
+
+    @Test
+    fun `converts property keys to UPPER_SNAKE_CASE env var keys`() {
+        assertEquals("MY_APP_CONNECT_TIMEOUT", PropertyKeyNormalizer.toEnvVarKey("my.app.connect-timeout"))
+        assertEquals("MY_APP_CONNECT_TIMEOUT", PropertyKeyNormalizer.toEnvVarKey("my.app.connectTimeout"))
+        assertEquals("MY_LIST_0_NAME", PropertyKeyNormalizer.toEnvVarKey("my.list[0].name"))
+        assertEquals("API_SECRET_KEY", PropertyKeyNormalizer.toEnvVarKey("API_SECRET_KEY"))
+    }
+
+    @Test
+    fun `extracts placeholder keys along with default values`() {
+        assertEquals(
+            listOf("my.app.timeout" to "3000"),
+            PropertyKeyNormalizer.extractPlaceholdersWithDefaults("\${my.app.timeout:3000}")
+        )
+        assertEquals(
+            listOf("my.app.url" to "https://example.com:8443/api"),
+            PropertyKeyNormalizer.extractPlaceholdersWithDefaults("\${my.app.url:https://example.com:8443/api}")
+        )
+        assertEquals(
+            listOf("my.app.key" to null),
+            PropertyKeyNormalizer.extractPlaceholdersWithDefaults("\${my.app.key}")
+        )
+    }
 }

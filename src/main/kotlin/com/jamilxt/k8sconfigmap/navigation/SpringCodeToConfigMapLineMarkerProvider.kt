@@ -10,6 +10,7 @@ import com.jamilxt.k8sconfigmap.settings.NavigatorSettings
 import org.jetbrains.uast.UAnnotation
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UField
+import org.jetbrains.uast.UMethod
 import org.jetbrains.uast.evaluateString
 import org.jetbrains.uast.toUElement
 
@@ -28,22 +29,50 @@ class SpringCodeToConfigMapLineMarkerProvider : RelatedItemLineMarkerProvider() 
                     val expr = uElement.findAttributeValue("value")
                         ?: uElement.attributeValues.firstOrNull()?.expression
                     val rawText = expr?.evaluateString() ?: return
-                    val keys = PropertyKeyNormalizer.extractPlaceholders(rawText)
-                    ConfigMapMarkerHelper.buildMarkerForKeys(PsiTreeUtil.getDeepestFirst(element), keys)
-                        ?.let { result.add(it) }
+                    val pairs = PropertyKeyNormalizer.extractPlaceholdersWithDefaults(rawText)
+                    val keys = pairs.map { it.first }
+                    val defaultVal = pairs.firstOrNull { it.second != null }?.second
+                    ConfigMapMarkerHelper.buildMarkerForKeys(
+                        PsiTreeUtil.getDeepestFirst(element),
+                        keys,
+                        allowAddMarker = true,
+                        defaultValue = defaultVal
+                    )?.let { result.add(it) }
                 } else if (JvmUastUsageScanner.isConfigPropertyAnnotation(uElement)) {
                     val name = uElement.findDeclaredAttributeValue("name")?.evaluateString()?.trim() ?: return
-                    ConfigMapMarkerHelper.buildMarkerForKeys(PsiTreeUtil.getDeepestFirst(element), listOf(name))
-                        ?.let { result.add(it) }
+                    val defaultVal = uElement.findDeclaredAttributeValue("defaultValue")?.evaluateString()
+                    ConfigMapMarkerHelper.buildMarkerForKeys(
+                        PsiTreeUtil.getDeepestFirst(element),
+                        listOf(name),
+                        allowAddMarker = true,
+                        defaultValue = defaultVal
+                    )?.let { result.add(it) }
                 }
             }
 
             is UField -> {
                 if (uElement.isStatic) return
-                val fullKey = JvmUastUsageScanner.resolveConfigPropertiesFieldKey(uElement) ?: return
+                val fullKeys = JvmUastUsageScanner.resolveConfigPropertiesFieldKeys(uElement)
+                if (fullKeys.isEmpty()) return
                 val anchor = uElement.uastAnchor?.sourcePsi ?: element
-                ConfigMapMarkerHelper.buildMarkerForKeys(PsiTreeUtil.getDeepestFirst(anchor), listOf(fullKey))
-                    ?.let { result.add(it) }
+                val defaultVal = uElement.uastInitializer?.evaluate()?.toString()
+                ConfigMapMarkerHelper.buildMarkerForKeys(
+                    PsiTreeUtil.getDeepestFirst(anchor),
+                    fullKeys,
+                    allowAddMarker = true,
+                    defaultValue = defaultVal
+                )?.let { result.add(it) }
+            }
+
+            is UMethod -> {
+                val fullKeys = JvmUastUsageScanner.resolveBeanConfigPropertiesKeys(uElement)
+                if (fullKeys.isEmpty()) return
+                val anchor = uElement.uastAnchor?.sourcePsi ?: element
+                ConfigMapMarkerHelper.buildMarkerForKeys(
+                    PsiTreeUtil.getDeepestFirst(anchor),
+                    fullKeys,
+                    allowAddMarker = true
+                )?.let { result.add(it) }
             }
 
             is UCallExpression -> {
@@ -60,8 +89,17 @@ class SpringCodeToConfigMapLineMarkerProvider : RelatedItemLineMarkerProvider() 
                 }
                 if (matches) {
                     val anchor = firstArg.sourcePsi ?: element
-                    ConfigMapMarkerHelper.buildMarkerForKeys(PsiTreeUtil.getDeepestFirst(anchor), listOf(key))
-                        ?.let { result.add(it) }
+                    val defaultVal = if (methodName == "getProperty" && uElement.valueArguments.size >= 2) {
+                        uElement.valueArguments[1].evaluateString()
+                    } else {
+                        null
+                    }
+                    ConfigMapMarkerHelper.buildMarkerForKeys(
+                        PsiTreeUtil.getDeepestFirst(anchor),
+                        listOf(key),
+                        allowAddMarker = true,
+                        defaultValue = defaultVal
+                    )?.let { result.add(it) }
                 }
             }
         }

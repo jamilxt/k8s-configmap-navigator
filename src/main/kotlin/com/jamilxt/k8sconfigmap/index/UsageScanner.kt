@@ -27,6 +27,12 @@ interface UsageScanner {
      */
     fun extractKeysAtElement(element: PsiElement, offset: Int, settings: NavigatorSettings): List<String> = emptyList()
 
+    /**
+     * Optionally extracts a default value associated with the config variable at [element]
+     * (e.g., `@Value("${key:default}")` or a field literal initializer).
+     */
+    fun extractDefaultValueAtElement(element: PsiElement, offset: Int, settings: NavigatorSettings): String? = null
+
     companion object {
         val EP_NAME: ExtensionPointName<UsageScanner> =
             ExtensionPointName.create("com.jamilxt.k8s-configmap-navigator.usageScanner")

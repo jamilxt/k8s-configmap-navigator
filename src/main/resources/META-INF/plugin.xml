@@ -55,5 +55,20 @@
 
         <referencesSearch
                 implementation="com.jamilxt.k8sconfigmap.navigation.ConfigMapKeyReferencesSearch"/>
+
+        <notificationGroup
+                id="K8s ConfigMap Navigator"
+                displayType="BALLOON"/>
     </extensions>
+
+    <actions>
+        <action
+                id="com.jamilxt.k8sconfigmap.actions.AddToConfigMapAction"
+                class="com.jamilxt.k8sconfigmap.actions.AddToConfigMapAction"
+                text="Add to K8s ConfigMap..."
+                description="Add this configuration variable to one or more Kubernetes ConfigMaps"
+                icon="/icons/configmap_add.svg">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+        </action>
+    </actions>
 </idea-plugin>

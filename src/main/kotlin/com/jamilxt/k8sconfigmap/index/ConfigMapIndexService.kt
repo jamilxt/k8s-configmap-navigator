@@ -15,6 +15,7 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.jamilxt.k8sconfigmap.core.PropertyKeyNormalizer
 import com.jamilxt.k8sconfigmap.model.ConfigMapEntry
+import com.jamilxt.k8sconfigmap.model.ConfigMapTarget
 import com.jamilxt.k8sconfigmap.settings.NavigatorSettings
 import org.jetbrains.yaml.psi.YAMLDocument
 import org.jetbrains.yaml.psi.YAMLFile
@@ -26,9 +27,14 @@ import java.nio.file.Path
 @Service(Service.Level.PROJECT)
 class ConfigMapIndexService(private val project: Project) {
 
+    private data class IndexData(
+        val entriesByCanonical: Map<String, List<ConfigMapEntry>>,
+        val configMaps: List<ConfigMapTarget>
+    )
+
     private val ignoredDirs = setOf(".git", ".idea", "node_modules", "build", "target", "out", ".gradle")
 
-    private fun getIndex(): Map<String, List<ConfigMapEntry>> {
+    private fun getIndexData(): IndexData {
         val settings = NavigatorSettings.getInstance(project)
         return CachedValuesManager.getManager(project).getCachedValue(project) {
             val result = buildIndex(settings)
@@ -44,7 +50,7 @@ class ConfigMapIndexService(private val project: Project) {
         val settings = NavigatorSettings.getInstance(project)
         val canonical = PropertyKeyNormalizer.canonicalize(rawKey)
         if (canonical.isEmpty()) return emptyList()
-        val candidates = getIndex()[canonical].orEmpty()
+        val candidates = getIndexData().entriesByCanonical[canonical].orEmpty()
         return if (settings.enableRelaxedBinding) {
             candidates.filter { PropertyKeyNormalizer.matches(it.key, rawKey) }
         } else {
@@ -52,7 +58,9 @@ class ConfigMapIndexService(private val project: Project) {
         }
     }
 
-    fun getAllEntries(): List<ConfigMapEntry> = getIndex().values.flatten()
+    fun getAllEntries(): List<ConfigMapEntry> = getIndexData().entriesByCanonical.values.flatten()
+
+    fun getAllConfigMaps(): List<ConfigMapTarget> = getIndexData().configMaps
 
     fun isConfigMapDataKey(keyValue: YAMLKeyValue): Boolean {
         val dataMapping = keyValue.parent as? YAMLMapping ?: return false
@@ -64,7 +72,7 @@ class ConfigMapIndexService(private val project: Project) {
         return kind == "ConfigMap"
     }
 
-    private fun buildIndex(settings: NavigatorSettings): Map<String, List<ConfigMapEntry>> {
+    private fun buildIndex(settings: NavigatorSettings): IndexData {
         val yamlFiles = LinkedHashSet<VirtualFile>()
         val scope = GlobalSearchScope.projectScope(project)
         yamlFiles.addAll(FilenameIndex.getAllFilesByExt(project, "yaml", scope))
@@ -77,14 +85,15 @@ class ConfigMapIndexService(private val project: Project) {
         val psiManager = PsiManager.getInstance(project)
         val pointerManager = SmartPointerManager.getInstance(project)
         val index = mutableMapOf<String, MutableList<ConfigMapEntry>>()
+        val configMaps = mutableListOf<ConfigMapTarget>()
 
         for (vFile in yamlFiles) {
             if (!vFile.isValid || vFile.isDirectory) continue
             val psiFile = psiManager.findFile(vFile) as? YAMLFile ?: continue
-            parseConfigMapFile(psiFile, vFile, pointerManager, index)
+            parseConfigMapFile(psiFile, vFile, pointerManager, index, configMaps)
         }
 
-        return index
+        return IndexData(index, configMaps)
     }
 
     private fun collectExternalYamlFiles(pathStr: String, sink: MutableSet<VirtualFile>) {
@@ -119,7 +128,8 @@ class ConfigMapIndexService(private val project: Project) {
         yamlFile: YAMLFile,
         vFile: VirtualFile,
         pointerManager: SmartPointerManager,
-        index: MutableMap<String, MutableList<ConfigMapEntry>>
+        index: MutableMap<String, MutableList<ConfigMapEntry>>,
+        configMaps: MutableList<ConfigMapTarget>
     ) {
         for (doc in yamlFile.documents) {
             val rootMapping = doc.topLevelValue as? YAMLMapping ?: continue
@@ -130,27 +140,41 @@ class ConfigMapIndexService(private val project: Project) {
             val cmName = metadata?.getKeyValueByKey("name")?.valueText?.trim().orEmpty().ifEmpty { vFile.nameWithoutExtension }
             val namespace = metadata?.getKeyValueByKey("namespace")?.valueText?.trim()?.takeIf { it.isNotEmpty() }
 
-            val dataMapping = rootMapping.getKeyValueByKey("data")?.value as? YAMLMapping ?: continue
-            for (kv in dataMapping.keyValues) {
-                val key = kv.keyText.trim()
-                if (key.isEmpty()) continue
-                val canonical = PropertyKeyNormalizer.canonicalize(key)
-                if (canonical.isEmpty()) continue
+            val existingKeys = linkedMapOf<String, String>()
+            val dataMapping = rootMapping.getKeyValueByKey("data")?.value as? YAMLMapping
+            if (dataMapping != null) {
+                for (kv in dataMapping.keyValues) {
+                    val key = kv.keyText.trim()
+                    if (key.isEmpty()) continue
+                    val canonical = PropertyKeyNormalizer.canonicalize(key)
+                    if (canonical.isEmpty()) continue
 
-                val rawValue = kv.valueText.trim().replace("\n", " ")
-                val preview = if (rawValue.length > 60) rawValue.take(57) + "..." else rawValue
+                    val rawValue = kv.valueText.trim().replace("\n", " ")
+                    val preview = if (rawValue.length > 60) rawValue.take(57) + "..." else rawValue
+                    existingKeys[key] = preview
 
-                val entry = ConfigMapEntry(
-                    key = key,
-                    canonicalKey = canonical,
-                    valuePreview = preview,
-                    configMapName = cmName,
+                    val entry = ConfigMapEntry(
+                        key = key,
+                        canonicalKey = canonical,
+                        valuePreview = preview,
+                        configMapName = cmName,
+                        namespace = namespace,
+                        virtualFile = vFile,
+                        psiPointer = pointerManager.createSmartPsiElementPointer(kv)
+                    )
+                    index.computeIfAbsent(canonical) { mutableListOf() }.add(entry)
+                }
+            }
+
+            configMaps.add(
+                ConfigMapTarget(
+                    name = cmName,
                     namespace = namespace,
                     virtualFile = vFile,
-                    psiPointer = pointerManager.createSmartPsiElementPointer(kv)
+                    documentPointer = pointerManager.createSmartPsiElementPointer(doc),
+                    existingKeys = existingKeys
                 )
-                index.computeIfAbsent(canonical) { mutableListOf() }.add(entry)
-            }
+            )
         }
     }
 
