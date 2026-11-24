@@ -58,6 +58,7 @@ class SpringFieldConfigMapReferencesSearch :
                     override fun isReferenceTo(element: PsiElement): Boolean =
                         element == target || element.manager.areElementsEquivalent(element, target)
                     override fun handleElementRename(newElementName: String): PsiElement = element
+                    override fun bindToElement(element: PsiElement): PsiElement = this.element
                 }
                 if (!consumer.process(ref)) return
             }

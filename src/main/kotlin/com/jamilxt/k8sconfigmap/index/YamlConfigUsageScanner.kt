@@ -77,6 +77,25 @@ class YamlConfigUsageScanner : UsageScanner {
         return keys.distinct()
     }
 
+    override fun extractKeysForGotoDeclaration(
+        element: PsiElement,
+        offset: Int,
+        settings: NavigatorSettings
+    ): List<String> {
+        val kv = PsiTreeUtil.getParentOfType(element, YAMLKeyValue::class.java, false) ?: return emptyList()
+        val cmIndex = ConfigMapIndexService.getInstance(element.project)
+        if (cmIndex.isConfigMapDataKey(kv)) return emptyList()
+
+        val doc = PsiTreeUtil.getParentOfType(kv, YAMLDocument::class.java, false)
+        if (doc != null && isConfigMapDocument(doc)) return emptyList()
+
+        // Only intercept explicit ${...} placeholders inside scalar values on Ctrl+Click.
+        // Do NOT intercept YAML keys so IntelliJ/Spring's built-in Show Usages continues to work.
+        val scalar = kv.value as? YAMLScalar ?: return emptyList()
+        if (element != scalar && !PsiTreeUtil.isAncestor(scalar, element, false)) return emptyList()
+        return PropertyKeyNormalizer.extractPlaceholders(scalar.textValue).distinct()
+    }
+
     private fun walkYamlMapping(
         mapping: YAMLMapping,
         prefix: String,
