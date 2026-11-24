@@ -72,40 +72,8 @@ class JvmUastUsageScanner : UsageScanner {
     override fun extractKeysAtElement(element: PsiElement, offset: Int, settings: NavigatorSettings): List<String> {
         val uElement = element.toUElement() ?: element.parent?.toUElement() ?: return emptyList()
 
-        val annotation = uElement.getParentOfType(UAnnotation::class.java, false)
-        if (annotation != null) {
-            if (isValueAnnotation(annotation)) {
-                val expr = annotation.findAttributeValue("value")
-                    ?: annotation.attributeValues.firstOrNull()?.expression
-                val rawText = expr?.evaluateString()
-                if (rawText != null) return PropertyKeyNormalizer.extractPlaceholders(rawText)
-            }
-            if (isConfigPropertyAnnotation(annotation)) {
-                val name = annotation.findDeclaredAttributeValue("name")?.evaluateString()
-                if (!name.isNullOrBlank()) return listOf(name.trim())
-            }
-            if (isConfigurationPropertiesAnnotation(annotation)) {
-                val method = annotation.uastParent as? UMethod
-                if (method != null) {
-                    val keys = resolveBeanConfigPropertiesKeys(method)
-                    if (keys.isNotEmpty()) return keys
-                }
-            }
-        }
-
-        val call = uElement.getParentOfType(UCallExpression::class.java, false)
-        if (call != null) {
-            val methodName = call.methodName
-            val firstArg = call.valueArguments.firstOrNull()?.evaluateString()
-            if (firstArg != null) {
-                val matched = when {
-                    (methodName == "getProperty" || methodName == "getRequiredProperty") && isEnvironmentReceiver(call) -> true
-                    (methodName == "getenv" || methodName == "getProperty") && settings.matchSystemGetEnv && isSystemReceiver(call) -> true
-                    else -> false
-                }
-                if (matched) return listOf(firstArg)
-            }
-        }
+        extractKeysFromAnnotation(uElement, element, requireAttributeValue = false)?.let { return it }
+        extractKeysFromCall(uElement, element, settings, requireFirstArg = false)?.let { return it }
 
         val field = uElement.getParentOfType(UField::class.java, false)
         if (field != null && !field.isStatic) {
@@ -128,6 +96,79 @@ class JvmUastUsageScanner : UsageScanner {
         }
 
         return emptyList()
+    }
+
+    override fun extractKeysForGotoDeclaration(
+        element: PsiElement,
+        offset: Int,
+        settings: NavigatorSettings
+    ): List<String> {
+        val uElement = element.toUElement() ?: element.parent?.toUElement() ?: return emptyList()
+
+        // Only handle explicit property key literals/expressions inside annotations or env/System calls.
+        // Do NOT intercept field, parameter, method, or type declarations so IntelliJ's built-in
+        // "Go to Declaration or Usages" (including Lombok getter/setter navigation) continues to work.
+        extractKeysFromAnnotation(uElement, element, requireAttributeValue = true)?.let { return it }
+        extractKeysFromCall(uElement, element, settings, requireFirstArg = true)?.let { return it }
+
+        return emptyList()
+    }
+
+    private fun extractKeysFromAnnotation(
+        uElement: org.jetbrains.uast.UElement,
+        sourceElement: PsiElement,
+        requireAttributeValue: Boolean
+    ): List<String>? {
+        val annotation = uElement.getParentOfType(UAnnotation::class.java, false) ?: return null
+        if (isValueAnnotation(annotation)) {
+            val expr = annotation.findAttributeValue("value")
+                ?: annotation.attributeValues.firstOrNull()?.expression
+            if (requireAttributeValue && !isElementInside(sourceElement, expr?.sourcePsi)) return null
+            val rawText = expr?.evaluateString()
+            if (rawText != null) return PropertyKeyNormalizer.extractPlaceholders(rawText)
+        }
+        if (isConfigPropertyAnnotation(annotation)) {
+            val expr = annotation.findDeclaredAttributeValue("name")
+            if (requireAttributeValue && !isElementInside(sourceElement, expr?.sourcePsi)) return null
+            val name = expr?.evaluateString()
+            if (!name.isNullOrBlank()) return listOf(name.trim())
+        }
+        if (isConfigurationPropertiesAnnotation(annotation)) {
+            val method = annotation.uastParent as? UMethod
+            if (method != null) {
+                val expr = annotation.findDeclaredAttributeValue("prefix")
+                    ?: annotation.findDeclaredAttributeValue("value")
+                    ?: annotation.attributeValues.firstOrNull()?.expression
+                if (requireAttributeValue && !isElementInside(sourceElement, expr?.sourcePsi)) return null
+                val keys = resolveBeanConfigPropertiesKeys(method)
+                if (keys.isNotEmpty()) return keys
+            }
+        }
+        return null
+    }
+
+    private fun extractKeysFromCall(
+        uElement: org.jetbrains.uast.UElement,
+        sourceElement: PsiElement,
+        settings: NavigatorSettings,
+        requireFirstArg: Boolean
+    ): List<String>? {
+        val call = uElement.getParentOfType(UCallExpression::class.java, false) ?: return null
+        val methodName = call.methodName
+        val firstArgExpr = call.valueArguments.firstOrNull() ?: return null
+        if (requireFirstArg && !isElementInside(sourceElement, firstArgExpr.sourcePsi)) return null
+        val firstArg = firstArgExpr.evaluateString() ?: return null
+        val matched = when {
+            (methodName == "getProperty" || methodName == "getRequiredProperty") && isEnvironmentReceiver(call) -> true
+            (methodName == "getenv" || methodName == "getProperty") && settings.matchSystemGetEnv && isSystemReceiver(call) -> true
+            else -> false
+        }
+        return if (matched) listOf(firstArg) else null
+    }
+
+    private fun isElementInside(element: PsiElement, container: PsiElement?): Boolean {
+        if (container == null) return false
+        return element == container || PsiTreeUtil.isAncestor(container, element, false)
     }
 
     override fun extractDefaultValueAtElement(element: PsiElement, offset: Int, settings: NavigatorSettings): String? {
@@ -165,22 +206,6 @@ class JvmUastUsageScanner : UsageScanner {
         }
 
         return null
-    }
-
-    private fun extractKeysFromAnnotations(annotations: List<UAnnotation>): List<String> {
-        val keys = LinkedHashSet<String>()
-        for (ann in annotations) {
-            if (isValueAnnotation(ann)) {
-                val expr = ann.findAttributeValue("value")
-                    ?: ann.attributeValues.firstOrNull()?.expression
-                val rawText = expr?.evaluateString()
-                if (rawText != null) keys.addAll(PropertyKeyNormalizer.extractPlaceholders(rawText))
-            } else if (isConfigPropertyAnnotation(ann)) {
-                val name = ann.findDeclaredAttributeValue("name")?.evaluateString()
-                if (!name.isNullOrBlank()) keys.add(name.trim())
-            }
-        }
-        return keys.toList()
     }
 
     private fun extractDefaultFromAnnotation(annotation: UAnnotation): String? {
@@ -377,6 +402,22 @@ class JvmUastUsageScanner : UsageScanner {
             val fqn = annotation.qualifiedName
             if (fqn in CONFIG_PROPS_FQNS) return true
             return fqn == null && annotation.sourcePsi?.text?.startsWith("@ConfigurationProperties") == true
+        }
+
+        fun extractKeysFromAnnotations(annotations: List<UAnnotation>): List<String> {
+            val keys = LinkedHashSet<String>()
+            for (ann in annotations) {
+                if (isValueAnnotation(ann)) {
+                    val expr = ann.findAttributeValue("value")
+                        ?: ann.attributeValues.firstOrNull()?.expression
+                    val rawText = expr?.evaluateString()
+                    if (rawText != null) keys.addAll(PropertyKeyNormalizer.extractPlaceholders(rawText))
+                } else if (isConfigPropertyAnnotation(ann)) {
+                    val name = ann.findDeclaredAttributeValue("name")?.evaluateString()
+                    if (!name.isNullOrBlank()) keys.add(name.trim())
+                }
+            }
+            return keys.toList()
         }
 
         fun extractConfigurationPropertiesPrefix(annotation: UAnnotation): String {

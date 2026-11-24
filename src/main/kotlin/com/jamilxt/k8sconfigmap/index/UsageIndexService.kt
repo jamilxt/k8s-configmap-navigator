@@ -53,6 +53,15 @@ class UsageIndexService(private val project: Project) {
         return keys.toList()
     }
 
+    fun extractKeysForGotoDeclaration(element: PsiElement, offset: Int): List<String> {
+        val settings = NavigatorSettings.getInstance(project)
+        val keys = LinkedHashSet<String>()
+        for (scanner in UsageScanner.EP_NAME.extensionList) {
+            keys.addAll(scanner.extractKeysForGotoDeclaration(element, offset, settings))
+        }
+        return keys.toList()
+    }
+
     fun extractDefaultValueAtElement(element: PsiElement, offset: Int): String? {
         val settings = NavigatorSettings.getInstance(project)
         for (scanner in UsageScanner.EP_NAME.extensionList) {

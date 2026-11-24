@@ -23,9 +23,18 @@ interface UsageScanner {
     )
 
     /**
-     * Extracts candidate ConfigMap keys referenced at [element] for reverse navigation (Code/Config -> ConfigMap).
+     * Extracts candidate ConfigMap keys referenced at [element] for context actions (e.g. "Add to K8s ConfigMap")
+     * and reverse navigation (Code/Config -> ConfigMap).
      */
     fun extractKeysAtElement(element: PsiElement, offset: Int, settings: NavigatorSettings): List<String> = emptyList()
+
+    /**
+     * Extracts candidate ConfigMap keys at [element] specifically for `Ctrl+Click` / Go to Declaration navigation.
+     * Defaults to [extractKeysAtElement]. Language scanners (such as JVM UAST) override this to avoid intercepting
+     * IDE declaration/usages navigation on language declarations (fields, parameters, methods, types).
+     */
+    fun extractKeysForGotoDeclaration(element: PsiElement, offset: Int, settings: NavigatorSettings): List<String> =
+        extractKeysAtElement(element, offset, settings)
 
     /**
      * Optionally extracts a default value associated with the config variable at [element]

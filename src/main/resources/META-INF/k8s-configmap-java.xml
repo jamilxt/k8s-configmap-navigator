@@ -7,5 +7,7 @@
         <codeInsight.lineMarkerProvider
                 language="UAST"
                 implementationClass="com.jamilxt.k8sconfigmap.navigation.SpringCodeToConfigMapLineMarkerProvider"/>
+        <referencesSearch
+                implementation="com.jamilxt.k8sconfigmap.navigation.SpringFieldConfigMapReferencesSearch"/>
     </extensions>
 </idea-plugin>

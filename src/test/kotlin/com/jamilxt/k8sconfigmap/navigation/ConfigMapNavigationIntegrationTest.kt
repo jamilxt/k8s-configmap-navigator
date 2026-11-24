@@ -238,6 +238,196 @@ class ConfigMapNavigationIntegrationTest : LightJavaCodeInsightFixtureTestCase()
         assertTrue("Expected gutter icon on @Value annotation", gutters.isNotEmpty())
     }
 
+    fun testGotoDeclarationDoesNotHijackJavaDeclarationsForUsages() {
+        myFixture.addFileToProject(
+            "k8s/configmap.yaml",
+            """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: qms-config
+            data:
+              URL_QMS_EXPERT_LEVEL: "http://cockpit-queue/expert-level"
+              MY_APP_CONNECT_TIMEOUT: "5000"
+              API_SECRET_KEY: "secret-123"
+            """.trimIndent()
+        )
+
+        myFixture.configureByText(
+            "QMSConfig.java",
+            """
+            import org.springframework.beans.factory.annotation.Value;
+            import org.springframework.core.env.Environment;
+
+            public class QMSConfig {
+                @Value("${'$'}{url.qms.expert.level}")
+                private String expertLevelUrl;
+
+                public String load(Environment env, @Value("${'$'}{url.qms.expert.level}") String paramUrl) {
+                    return env.getProperty("api.secret.key") + expertLevelUrl + paramUrl;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val handler = ConfigMapGotoDeclarationHandler()
+        val text = myFixture.file.text
+
+        // 1. Caret on @Value string literal -> MUST resolve to ConfigMap
+        val valueKeyOffset = text.indexOf("url.qms.expert.level") + 4
+        val valueKeyTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(valueKeyOffset),
+            valueKeyOffset,
+            myFixture.editor
+        )
+        assertNotNull("Expected GotoDeclaration on @Value key literal", valueKeyTargets)
+        assertEquals(1, valueKeyTargets!!.size)
+        assertEquals("URL_QMS_EXPERT_LEVEL", (valueKeyTargets.first() as YAMLKeyValue).keyText)
+
+        // 2. Caret on field identifier `expertLevelUrl` -> MUST return null so IDE Show Usages / Lombok works
+        val fieldNameOffset = text.indexOf("expertLevelUrl") + 3
+        val fieldNameTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(fieldNameOffset),
+            fieldNameOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack field identifier", fieldNameTargets)
+
+        // 3. Caret on field type `String` -> MUST return null so IDE navigates to java.lang.String
+        val fieldTypeOffset = text.indexOf("String expertLevelUrl") + 2
+        val fieldTypeTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(fieldTypeOffset),
+            fieldTypeOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack field type", fieldTypeTargets)
+
+        // 4. Caret on `@Value` annotation name -> MUST return null so IDE navigates to @Value class
+        val annotationNameOffset = text.indexOf("@Value") + 2
+        val annotationNameTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(annotationNameOffset),
+            annotationNameOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack @Value annotation name", annotationNameTargets)
+
+        // 5. Caret on parameter identifier `paramUrl` -> MUST return null so IDE Show Usages works
+        val paramNameOffset = text.indexOf("paramUrl") + 2
+        val paramNameTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(paramNameOffset),
+            paramNameOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack parameter identifier", paramNameTargets)
+
+        // 6. Caret on `getProperty` method name -> MUST return null; caret on `"api.secret.key"` -> resolves to ConfigMap
+        val getPropMethodOffset = text.indexOf("getProperty") + 3
+        val getPropMethodTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(getPropMethodOffset),
+            getPropMethodOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack getProperty method name", getPropMethodTargets)
+
+        val getPropArgOffset = text.indexOf("api.secret.key") + 4
+        val getPropArgTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(getPropArgOffset),
+            getPropArgOffset,
+            myFixture.editor
+        )
+        assertNotNull("Expected GotoDeclaration on env.getProperty key argument", getPropArgTargets)
+        assertEquals("API_SECRET_KEY", (getPropArgTargets!!.first() as YAMLKeyValue).keyText)
+
+        // 7. Caret on @ConfigurationProperties field identifier -> MUST return null (gutter icon handles ConfigMap nav)
+        myFixture.configureByText(
+            "AppProperties.java",
+            """
+            import org.springframework.boot.context.properties.ConfigurationProperties;
+
+            @ConfigurationProperties(prefix = "my.app")
+            public class AppProperties {
+                private int connect<caret>Timeout;
+            }
+            """.trimIndent()
+        )
+        val cpFieldTargets = handler.getGotoDeclarationTargets(
+            myFixture.file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack @ConfigurationProperties field identifier", cpFieldTargets)
+    }
+
+    fun testFieldFindUsagesShowsBothCodeAndConfigMapEntries() {
+        myFixture.addFileToProject(
+            "k8s/configmap.yaml",
+            """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: qms-config
+            data:
+              URL_QMS_EXPERT_LEVEL: "http://cockpit-queue/expert-level"
+              MY_APP_CONNECT_TIMEOUT: "5000"
+            """.trimIndent()
+        )
+
+        val qmsFile = myFixture.configureByText(
+            "QMSConfig.java",
+            """
+            import org.springframework.beans.factory.annotation.Value;
+
+            public class QMSConfig {
+                @Value("${'$'}{url.qms.expert.level}")
+                private String expertLevelUrl;
+
+                public String getExpertLevelUrl() {
+                    return expertLevelUrl;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val expertField = PsiTreeUtil.findChildrenOfType(qmsFile, com.intellij.psi.PsiField::class.java)
+            .first { it.name == "expertLevelUrl" }
+        val fieldRefs = ReferencesSearch.search(expertField).findAll()
+        assertTrue(
+            "Expected code usage reference for expertLevelUrl",
+            fieldRefs.any { it.element.containingFile.name == "QMSConfig.java" }
+        )
+        val cmRef = fieldRefs.firstOrNull { it.element is YAMLKeyValue }
+        assertNotNull("Expected ConfigMap YAML reference alongside code usages", cmRef)
+        assertEquals("URL_QMS_EXPERT_LEVEL", (cmRef!!.element as YAMLKeyValue).keyText)
+        assertSame("Rename must be a no-op on ConfigMap reference", cmRef.element, cmRef.handleElementRename("renamedField"))
+
+        val appPropsFile = myFixture.configureByText(
+            "AppProperties.java",
+            """
+            import org.springframework.boot.context.properties.ConfigurationProperties;
+
+            @ConfigurationProperties(prefix = "my.app")
+            public class AppProperties {
+                private int connectTimeout;
+
+                public int readTimeout() {
+                    return connectTimeout;
+                }
+            }
+            """.trimIndent()
+        )
+        val cpField = PsiTreeUtil.findChildrenOfType(appPropsFile, com.intellij.psi.PsiField::class.java)
+            .first { it.name == "connectTimeout" }
+        val cpRefs = ReferencesSearch.search(cpField).findAll()
+        assertTrue(
+            "Expected code usage reference for connectTimeout",
+            cpRefs.any { it.element.containingFile.name == "AppProperties.java" }
+        )
+        assertTrue(
+            "Expected ConfigMap YAML reference for @ConfigurationProperties field",
+            cpRefs.any { (it.element as? YAMLKeyValue)?.keyText == "MY_APP_CONNECT_TIMEOUT" }
+        )
+    }
+
     fun testExternalConfigMapDirectoryDiscovery() {
         val tempDir = Files.createTempDirectory("k8s-external-cm-test")
         try {
