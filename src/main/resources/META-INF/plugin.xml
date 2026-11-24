@@ -4,11 +4,12 @@
     <vendor email="opensource@jamilxt.com" url="https://github.com/jamilxt">jamilxt</vendor>
 
     <description><![CDATA[
-    Find usages and navigate bidirectionally between Kubernetes <code>ConfigMap</code> YAML keys and your application code across any JetBrains IDE (IntelliJ IDEA, PyCharm, GoLand, WebStorm, Rider, PhpStorm, RustRover).
+    Find usages, add missing variables, and navigate bidirectionally between Kubernetes <code>ConfigMap</code> YAML keys and your application code across any JetBrains IDE (IntelliJ IDEA, PyCharm, GoLand, WebStorm, Rider, PhpStorm, RustRover).
     <ul>
-        <li><b>Multi-Language &amp; Multi-Framework:</b> Spring Boot (<code>@Value</code>, <code>@ConfigurationProperties</code>, <code>Environment.getProperty</code>, <code>application.yml</code>/<code>.properties</code>), Quarkus/MicroProfile (<code>@ConfigProperty</code>), Micronaut, Node.js/TypeScript (<code>process.env</code>, <code>import.meta.env</code>), Python (<code>os.getenv</code>, <code>os.environ</code>), Go (<code>os.Getenv</code>, <code>viper</code>), C#/.NET, Rust, PHP, Ruby, and <code>.env</code> / TOML / JSON / YAML configs.</li>
+        <li><b>Multi-Language &amp; Multi-Framework:</b> Spring Boot (<code>@Value</code>, class &amp; <code>@Bean</code> method <code>@ConfigurationProperties</code>, <code>Environment.getProperty</code>, <code>application.yml</code>/<code>.properties</code>), Quarkus/MicroProfile (<code>@ConfigProperty</code>), Micronaut, Node.js/TypeScript (<code>process.env</code>, <code>import.meta.env</code>), Python (<code>os.getenv</code>, <code>os.environ</code>), Go (<code>os.Getenv</code>, <code>viper</code>), C#/.NET, Rust, PHP, Ruby, and <code>.env</code> / TOML / JSON / YAML configs.</li>
+        <li><b>Bidirectional Navigation &amp; Combined Find Usages:</b> Gutter icons, <code>Ctrl+Click</code> / <code>Cmd+Click</code>, and native <code>Alt+F7</code> Find Usages from ConfigMaps, Java/Kotlin fields (Lombok-friendly), and <code>application.yml</code>/<code>.properties</code> &mdash; showing both code usages and matching ConfigMap entries together.</li>
+        <li><b>One-Click Add to ConfigMap:</b> Click the <code>+</code> gutter icon on missing config variables or use the right-click <b>Add to K8s ConfigMap...</b> action with automatic <code>UPPER_SNAKE_CASE</code> conversion, default value pre-fill, multi-ConfigMap selection, smart property-group placement, and full Undo support.</li>
         <li><b>Relaxed Binding Support:</b> Automatically matches <code>MY_APP_CONNECT_TIMEOUT</code> &harr; <code>my.app.connect-timeout</code>, <code>my.app.connectTimeout</code>, and <code>my.list[0].name</code>.</li>
-        <li><b>Bidirectional Navigation &amp; Find Usages:</b> Gutter icons, <code>Ctrl+Click</code> / <code>Cmd+Click</code>, and native <code>Alt+F7</code> Find Usages directly from ConfigMap keys.</li>
         <li><b>Monorepo &amp; Multi-Repo:</b> Automatically scans your project and supports configurable external Kubernetes/GitOps or application directories.</li>
     </ul>
     ]]></description>
