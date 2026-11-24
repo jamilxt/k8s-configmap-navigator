@@ -274,4 +274,93 @@ class AddToConfigMapIntegrationTest : LightJavaCodeInsightFixtureTestCase() {
             updatedTooltips.any { it.contains("MISSING_FEATURE_FLAG") && it.startsWith("Navigate to K8s ConfigMap") }
         )
     }
+
+    fun testAddKeyPlacesAfterMatchingPropertyGroupAndPreservesInlineComments() {
+        val cmFile = myFixture.configureByText(
+            "grouped-cm.yaml",
+            """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: grouped-config
+            data:
+              # Database
+              SPRING_DATASOURCE_URL: "jdbc:postgresql://db:5432/app"
+              SPRING_DATASOURCE_USERNAME: "app"
+
+              # QMS URLs
+              URL_QMS_RTV_DELETE: "http://qms/rtv/delete"
+              URL_QMS_EXPERT_LEVEL: "http://qms/expert-level"
+              URL_QMS_EXPERT_LEVEL_MAP: "http://qms/expert-level/map"
+              URL_QMS_CIRCLE: "http://qms/circle" # circle endpoint
+
+              # Payment
+              PAYMENT_GATEWAY_URL: "https://pay.example.com"
+              PAYMENT_TIMEOUT: "3000"
+            """.trimIndent()
+        )
+
+        val cmIndex = ConfigMapIndexService.getInstance(project)
+
+        // 1. Deep subgroup match -> right after URL_QMS_EXPERT_LEVEL_MAP (common prefix length 5)
+        ConfigMapYamlWriter.addOrUpdateKey(
+            project,
+            cmIndex.getAllConfigMaps().first(),
+            "URL_QMS_EXPERT_LEVEL_MAP_DELETE",
+            "http://qms/expert-level/map/delete"
+        )
+        assertTrue(
+            "Expected URL_QMS_EXPERT_LEVEL_MAP_DELETE right after URL_QMS_EXPERT_LEVEL_MAP, got:\n${cmFile.text}",
+            cmFile.text.contains(
+                "  URL_QMS_EXPERT_LEVEL_MAP: \"http://qms/expert-level/map\"\n" +
+                    "  URL_QMS_EXPERT_LEVEL_MAP_DELETE: \"http://qms/expert-level/map/delete\"\n" +
+                    "  URL_QMS_CIRCLE: \"http://qms/circle\" # circle endpoint"
+            )
+        )
+
+        // 2. Group-end match with inline comment -> right after URL_QMS_CIRCLE without splitting comment
+        ConfigMapYamlWriter.addOrUpdateKey(
+            project,
+            cmIndex.getAllConfigMaps().first(),
+            "URL_QMS_PARTNER_TYPE",
+            "http://qms/partner-type"
+        )
+        assertTrue(
+            "Expected URL_QMS_PARTNER_TYPE right after URL_QMS_CIRCLE preserving inline comment, got:\n${cmFile.text}",
+            cmFile.text.contains(
+                "  URL_QMS_CIRCLE: \"http://qms/circle\" # circle endpoint\n" +
+                    "  URL_QMS_PARTNER_TYPE: \"http://qms/partner-type\"\n"
+            )
+        )
+
+        // 3. Single-token prefix match -> right after PAYMENT_TIMEOUT
+        ConfigMapYamlWriter.addOrUpdateKey(
+            project,
+            cmIndex.getAllConfigMaps().first(),
+            "PAYMENT_RETRY_COUNT",
+            "3"
+        )
+        assertTrue(
+            "Expected PAYMENT_RETRY_COUNT right after PAYMENT_TIMEOUT, got:\n${cmFile.text}",
+            cmFile.text.contains(
+                "  PAYMENT_TIMEOUT: \"3000\"\n" +
+                    "  PAYMENT_RETRY_COUNT: \"3\""
+            )
+        )
+
+        // 4. Unrelated key -> appended at the very end of data:
+        ConfigMapYamlWriter.addOrUpdateKey(
+            project,
+            cmIndex.getAllConfigMaps().first(),
+            "REDIS_HOST",
+            "redis.internal"
+        )
+        assertTrue(
+            "Expected REDIS_HOST appended at the bottom, got:\n${cmFile.text}",
+            cmFile.text.trimEnd().endsWith(
+                "  PAYMENT_RETRY_COUNT: \"3\"\n" +
+                    "  REDIS_HOST: \"redis.internal\""
+            )
+        )
+    }
 }
