@@ -56,6 +56,15 @@
         <referencesSearch
                 implementation="com.jamilxt.k8sconfigmap.navigation.ConfigMapKeyReferencesSearch"/>
 
+        <localInspection
+                language="yaml"
+                shortName="UnusedConfigMapKey"
+                displayName="Unused Kubernetes ConfigMap key"
+                groupName="K8s ConfigMap Navigator"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="com.jamilxt.k8sconfigmap.navigation.UnusedConfigMapKeyInspection"/>
+
         <notificationGroup
                 id="K8s ConfigMap Navigator"
                 displayType="BALLOON"/>

@@ -12,4 +12,16 @@ object PluginIcons {
 
     @JvmField
     val Spring: Icon = IconLoader.getIcon("/icons/spring.svg", PluginIcons::class.java)
+
+    @JvmField
+    val Framework: Icon = IconLoader.getIcon("/icons/framework.svg", PluginIcons::class.java)
+
+    @JvmField
+    val FrameworkUsed: Icon = IconLoader.getIcon("/icons/framework_used.svg", PluginIcons::class.java)
+
+    @JvmField
+    val Library: Icon = IconLoader.getIcon("/icons/library.svg", PluginIcons::class.java)
+
+    @JvmField
+    val LibraryUsed: Icon = IconLoader.getIcon("/icons/library_used.svg", PluginIcons::class.java)
 }

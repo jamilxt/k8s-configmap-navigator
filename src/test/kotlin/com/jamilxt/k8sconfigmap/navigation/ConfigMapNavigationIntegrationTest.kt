@@ -602,6 +602,153 @@ class ConfigMapNavigationIntegrationTest : LightJavaCodeInsightFixtureTestCase()
         )
     }
 
+    fun testFrameworkPropertyDetectionGutterIconAndUnusedKeyInspection() {
+        myFixture.addFileToProject(
+            "META-INF/spring-configuration-metadata.json",
+            """
+            {
+              "properties": [
+                {
+                  "name": "spring.datasource.url",
+                  "type": "java.lang.String",
+                  "sourceType": "org.springframework.boot.autoconfigure.jdbc.DataSourceProperties",
+                  "description": "JDBC URL of the database."
+                },
+                {
+                  "name": "logging.level",
+                  "type": "java.util.Map<java.lang.String,java.lang.String>",
+                  "sourceType": "org.springframework.boot.context.logging.LoggingApplicationListener",
+                  "description": "Log levels severity mapping."
+                },
+                {
+                  "name": "mycompany.auth.token-ttl",
+                  "type": "java.lang.Integer",
+                  "sourceType": "com.mycompany.auth.AuthLibraryProperties",
+                  "description": "Auth library token TTL in seconds."
+                },
+                {
+                  "name": "mycompany.auth.issuer",
+                  "type": "java.lang.String",
+                  "sourceType": "com.mycompany.auth.AuthLibraryProperties",
+                  "description": "Auth library token issuer."
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        myFixture.addFileToProject(
+            "src/AppService.java",
+            """
+            import org.springframework.beans.factory.annotation.Value;
+
+            public class AppService {
+                @Value("${'$'}{my.app.timeout:1000}")
+                private int timeout;
+
+                @Value("${'$'}{spring.datasource.url}")
+                private String dbUrl;
+
+                @Value("${'$'}{mycompany.auth.issuer}")
+                private String authIssuer;
+            }
+            """.trimIndent()
+        )
+
+        myFixture.enableInspections(UnusedConfigMapKeyInspection::class.java)
+
+        myFixture.configureByText(
+            "framework-cm.yaml",
+            """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: framework-test-cm
+            data:
+              MY_APP_TIMEOUT: "5000"
+              SPRING_DATASOURCE_URL: "jdbc:postgresql://db:5432/app"
+              LOGGING_LEVEL_COM_EXAMPLE: "DEBUG"
+              MYCOMPANY_AUTH_TOKEN_TTL: "3600"
+              MYCOMPANY_AUTH_ISSUER: "https://auth.mycompany.com"
+              JAVA_TOOL_OPTIONS: "-Xmx512m"
+              OTEL_SERVICE_NAME: "order-service"
+              SPRING_NONEXISTENT_TYPO: "oops"
+              COMPLETELY_UNUSED_KEY: "dead"
+            """.trimIndent()
+        )
+
+        // 1. Verify FrameworkPropertyIndexService classification (FRAMEWORK vs LIBRARY vs null)
+        val fwIndex = com.jamilxt.k8sconfigmap.index.FrameworkPropertyIndexService.getInstance(project)
+        val dsMatch = fwIndex.findFrameworkProperty("SPRING_DATASOURCE_URL")
+        assertNotNull("Expected Spring Boot metadata exact match", dsMatch)
+        assertEquals(com.jamilxt.k8sconfigmap.index.PropertyOrigin.FRAMEWORK, dsMatch!!.origin)
+        assertEquals("Spring Boot", dsMatch.frameworkName)
+        assertEquals("JDBC URL of the database.", dsMatch.description)
+
+        val logMatch = fwIndex.findFrameworkProperty("LOGGING_LEVEL_COM_EXAMPLE")
+        assertNotNull("Expected Spring Boot metadata Map prefix match", logMatch)
+        assertEquals(com.jamilxt.k8sconfigmap.index.PropertyOrigin.FRAMEWORK, logMatch!!.origin)
+        assertEquals("logging.level", logMatch.propertyName)
+
+        val libMatch = fwIndex.findFrameworkProperty("MYCOMPANY_AUTH_TOKEN_TTL")
+        assertNotNull("Expected Library metadata match", libMatch)
+        assertEquals(com.jamilxt.k8sconfigmap.index.PropertyOrigin.LIBRARY, libMatch!!.origin)
+        assertEquals("AuthLibraryProperties", libMatch.frameworkName)
+
+        assertNotNull("Expected JVM runtime match", fwIndex.findFrameworkProperty("JAVA_TOOL_OPTIONS"))
+        assertNotNull("Expected OpenTelemetry prefix match", fwIndex.findFrameworkProperty("OTEL_SERVICE_NAME"))
+        assertNull("Typo should NOT match when classpath metadata is present", fwIndex.findFrameworkProperty("SPRING_NONEXISTENT_TYPO"))
+        assertNull("Unrelated key should NOT match framework", fwIndex.findFrameworkProperty("COMPLETELY_UNUSED_KEY"))
+
+        // 2. Verify all 5 distinct gutter icon/tooltip states (7 non-unused keys total)
+        val gutters = myFixture.findAllGutters()
+        val tooltips = gutters.mapNotNull { it.tooltipText }
+        assertTrue(
+            "Expected custom property usage icon for MY_APP_TIMEOUT, got: $tooltips",
+            tooltips.any { it.startsWith("Navigate to usage") && !it.contains("property:") }
+        )
+        assertTrue(
+            "Expected Framework + Used combined tooltip for SPRING_DATASOURCE_URL, got: $tooltips",
+            tooltips.any {
+                it.contains("Spring Boot property: spring.datasource.url") &&
+                    it.contains("Navigate to usage")
+            }
+        )
+        assertTrue(
+            "Expected Framework-only tooltip for logging.level, got: $tooltips",
+            tooltips.any {
+                it.contains("Spring Boot property: logging.level") &&
+                    !it.contains("Navigate to usage")
+            }
+        )
+        assertTrue(
+            "Expected Library-only tooltip for mycompany.auth.token-ttl, got: $tooltips",
+            tooltips.any {
+                it.contains("Library (AuthLibraryProperties) property: mycompany.auth.token-ttl") &&
+                    !it.contains("Navigate to usage")
+            }
+        )
+        assertTrue(
+            "Expected Library + Used combined tooltip for mycompany.auth.issuer, got: $tooltips",
+            tooltips.any {
+                it.contains("Library (AuthLibraryProperties) property: mycompany.auth.issuer") &&
+                    it.contains("Navigate to usage")
+            }
+        )
+        assertEquals("Expected 7 gutter icons total (1 custom + 1 fw+used + 3 fw-only + 1 lib-only + 1 lib+used), got: $tooltips", 7, gutters.size)
+
+        // 3. Verify UnusedConfigMapKeyInspection grays out ONLY unused/typo keys
+        val allHighlights = myFixture.doHighlighting()
+        val highlights = allHighlights
+            .filter { it.description?.contains("is not used in project code") == true }
+        val flaggedKeys = highlights.map { it.text }.toSet()
+        assertEquals(
+            "All highlights: ${allHighlights.map { "${it.severity}/${it.type}:${it.text}:${it.description}" }}",
+            setOf("SPRING_NONEXISTENT_TYPO", "COMPLETELY_UNUSED_KEY"),
+            flaggedKeys
+        )
+    }
+
     fun testExternalConfigMapDirectoryDiscovery() {
         val tempDir = Files.createTempDirectory("k8s-external-cm-test")
         try {
