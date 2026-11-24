@@ -428,6 +428,180 @@ class ConfigMapNavigationIntegrationTest : LightJavaCodeInsightFixtureTestCase()
         )
     }
 
+    fun testRenameConfigMapKeySucceedsWithoutCorruptingUsages() {
+        val configMapFile = myFixture.configureByText(
+            "configmap.yaml",
+            """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: rename-test-config
+            data:
+              MY_APP_CONNECT_TIMEOUT: "5000"
+            """.trimIndent()
+        )
+
+        val javaFile = myFixture.addFileToProject(
+            "src/OrderService.java",
+            """
+            import org.springframework.beans.factory.annotation.Value;
+
+            public class OrderService {
+                @Value("${'$'}{my.app.connect-timeout:1000}")
+                private int timeout;
+            }
+            """.trimIndent()
+        )
+
+        val propsClassFile = myFixture.addFileToProject(
+            "src/AppProperties.java",
+            """
+            import org.springframework.boot.context.properties.ConfigurationProperties;
+
+            @ConfigurationProperties(prefix = "my.app")
+            public class AppProperties {
+                private int connectTimeout;
+            }
+            """.trimIndent()
+        )
+
+        val timeoutKv = PsiTreeUtil.findChildrenOfType(configMapFile, YAMLKeyValue::class.java)
+            .first { it.keyText == "MY_APP_CONNECT_TIMEOUT" }
+
+        myFixture.renameElement(timeoutKv, "MY_APP_READ_TIMEOUT")
+
+        assertTrue(
+            "Expected ConfigMap key to be renamed to MY_APP_READ_TIMEOUT, got:\n${configMapFile.text}",
+            configMapFile.text.contains("MY_APP_READ_TIMEOUT: \"5000\"")
+        )
+        assertTrue(
+            "Expected @Value string in Java file to remain intact",
+            javaFile.text.contains("@Value(\"\${my.app.connect-timeout:1000}\")")
+        )
+        assertTrue(
+            "Expected @ConfigurationProperties field in Java file to remain intact",
+            propsClassFile.text.contains("private int connectTimeout;")
+        )
+    }
+
+    fun testPropertiesAndAppYamlKeysPreserveShowUsagesAndConfigMapValueNotHijacked() {
+        val configMapFile = myFixture.configureByText(
+            "configmap.yaml",
+            """
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: app-config
+            data:
+              URL_QMS_EXPERT_LEVEL: "http://cockpit-queue/expert-level"
+              SPRING_DATASOURCE_URL: "jdbc:postgresql://db:5432/orders"
+            """.trimIndent()
+        )
+
+        myFixture.addFileToProject(
+            "src/QMSConfig.java",
+            """
+            import org.springframework.beans.factory.annotation.Value;
+
+            public class QMSConfig {
+                @Value("${'$'}{url.qms.expert.level}")
+                private String expertLevelUrl;
+            }
+            """.trimIndent()
+        )
+
+        val handler = ConfigMapGotoDeclarationHandler()
+
+        // #10: Ctrl+Click on ConfigMap key -> resolves usages; Ctrl+Click on ConfigMap value URL -> must return null
+        val cmText = configMapFile.text
+        val cmKeyOffset = cmText.indexOf("URL_QMS_EXPERT_LEVEL") + 4
+        val cmKeyTargets = handler.getGotoDeclarationTargets(
+            configMapFile.findElementAt(cmKeyOffset),
+            cmKeyOffset,
+            myFixture.editor
+        )
+        assertNotNull("Expected GotoDeclaration on ConfigMap key", cmKeyTargets)
+        assertTrue(cmKeyTargets!!.isNotEmpty())
+
+        val cmValueOffset = cmText.indexOf("http://cockpit-queue") + 5
+        val cmValueTargets = handler.getGotoDeclarationTargets(
+            configMapFile.findElementAt(cmValueOffset),
+            cmValueOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack ConfigMap value (e.g. URL)", cmValueTargets)
+
+        // #9a: application.properties key -> GotoDeclaration returns null (preserving Show Usages),
+        //      placeholder in value -> GotoDeclaration resolves to ConfigMap,
+        //      ReferencesSearch on Property -> includes ConfigMap YAMLKeyValue
+        val propsFile = myFixture.configureByText(
+            "application.properties",
+            """
+            url.qms.expert.level=${'$'}{URL_QMS_EXPERT_LEVEL:http://localhost}
+            """.trimIndent()
+        )
+        val propsText = propsFile.text
+        val propKeyOffset = propsText.indexOf("url.qms.expert.level") + 4
+        val propKeyTargets = handler.getGotoDeclarationTargets(
+            propsFile.findElementAt(propKeyOffset),
+            propKeyOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack .properties key", propKeyTargets)
+
+        val propPlaceholderOffset = propsText.indexOf("URL_QMS_EXPERT_LEVEL") + 4
+        val propPlaceholderTargets = handler.getGotoDeclarationTargets(
+            propsFile.findElementAt(propPlaceholderOffset),
+            propPlaceholderOffset,
+            myFixture.editor
+        )
+        assertNotNull("Expected GotoDeclaration on .properties placeholder value", propPlaceholderTargets)
+        assertEquals("URL_QMS_EXPERT_LEVEL", (propPlaceholderTargets!!.first() as YAMLKeyValue).keyText)
+
+        val propElement = PsiTreeUtil.findChildrenOfType(propsFile, com.intellij.lang.properties.psi.Property::class.java).first()
+        val propRefs = ReferencesSearch.search(propElement).findAll()
+        assertTrue(
+            "Expected ReferencesSearch on .properties key to include ConfigMap entry",
+            propRefs.any { (it.element as? YAMLKeyValue)?.keyText == "URL_QMS_EXPERT_LEVEL" }
+        )
+
+        // #9b: application.yml key -> GotoDeclaration returns null,
+        //      placeholder in value -> GotoDeclaration resolves to ConfigMap,
+        //      ReferencesSearch on YAMLKeyValue -> includes ConfigMap YAMLKeyValue
+        val appYamlFile = myFixture.configureByText(
+            "application.yml",
+            """
+            spring:
+              datasource:
+                url: ${'$'}{SPRING_DATASOURCE_URL:jdbc:h2:mem:test}
+            """.trimIndent()
+        )
+        val yamlText = appYamlFile.text
+        val yamlKeyOffset = yamlText.indexOf("url:") + 1
+        val yamlKeyTargets = handler.getGotoDeclarationTargets(
+            appYamlFile.findElementAt(yamlKeyOffset),
+            yamlKeyOffset,
+            myFixture.editor
+        )
+        assertNull("GotoDeclaration must NOT hijack application.yml key", yamlKeyTargets)
+
+        val yamlPlaceholderOffset = yamlText.indexOf("SPRING_DATASOURCE_URL") + 4
+        val yamlPlaceholderTargets = handler.getGotoDeclarationTargets(
+            appYamlFile.findElementAt(yamlPlaceholderOffset),
+            yamlPlaceholderOffset,
+            myFixture.editor
+        )
+        assertNotNull("Expected GotoDeclaration on application.yml placeholder value", yamlPlaceholderTargets)
+        assertEquals("SPRING_DATASOURCE_URL", (yamlPlaceholderTargets!!.first() as YAMLKeyValue).keyText)
+
+        val urlKv = PsiTreeUtil.findChildrenOfType(appYamlFile, YAMLKeyValue::class.java).first { it.keyText == "url" }
+        val yamlRefs = ReferencesSearch.search(urlKv).findAll()
+        assertTrue(
+            "Expected ReferencesSearch on application.yml key to include ConfigMap entry",
+            yamlRefs.any { (it.element as? YAMLKeyValue)?.keyText == "SPRING_DATASOURCE_URL" }
+        )
+    }
+
     fun testExternalConfigMapDirectoryDiscovery() {
         val tempDir = Files.createTempDirectory("k8s-external-cm-test")
         try {

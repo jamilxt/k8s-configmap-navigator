@@ -5,9 +5,12 @@ All notable changes to **K8s ConfigMap Navigator** will be documented in this fi
 ## [1.0.3] - 2026-11-24
 ### Fixed
 - Fixed `Ctrl+Click` / `Cmd+Click` (Go to Declaration or Usages) on `@Value` and `@ConfigurationProperties` fields, parameters, methods, and types so IntelliJ's built-in **Show Usages** and Lombok getter/setter navigation are no longer intercepted ([#6](https://github.com/jamilxt/k8s-configmap-navigator/issues/6)).
+- Fixed **Rename** (`Shift+F6`) on Kubernetes `ConfigMap` YAML keys failing after *"Looking for usages..."* ([#8](https://github.com/jamilxt/k8s-configmap-navigator/issues/8)).
+- Fixed `Ctrl+Click` on property keys in `.properties` and `application.yml` files hijacking Java/Spring **Show Usages** ([#9](https://github.com/jamilxt/k8s-configmap-navigator/issues/9)).
+- Fixed `Ctrl+Click` on Kubernetes `ConfigMap` YAML *values* (e.g., `http://...` URLs) being hijacked instead of opening normally ([#10](https://github.com/jamilxt/k8s-configmap-navigator/issues/10)).
 
 ### Added
-- **Combined Code & ConfigMap Usages:** `Ctrl+Click` (Show Usages) and `Alt+F7` (Find Usages) on `@Value`, `@ConfigProperty`, and `@ConfigurationProperties` fields/parameters now show **both** code/Lombok usages and matching Kubernetes `ConfigMap` entries together (while keeping Rename refactoring safe on YAML files).
+- **Combined Code & ConfigMap Usages:** `Ctrl+Click` (Show Usages) and `Alt+F7` (Find Usages) on `@Value`, `@ConfigProperty`, `@ConfigurationProperties` fields/parameters, and `application*.properties`/`.yml` keys now show **both** code/Lombok usages and matching Kubernetes `ConfigMap` entries together (while keeping Rename and Move refactorings safe on YAML files).
 
 ## [1.0.2] - 2026-11-23
 ### Added

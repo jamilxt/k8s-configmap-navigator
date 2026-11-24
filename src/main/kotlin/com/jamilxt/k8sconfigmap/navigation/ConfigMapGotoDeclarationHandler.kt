@@ -21,6 +21,10 @@ class ConfigMapGotoDeclarationHandler : GotoDeclarationHandler {
         // Direction 1: From K8s ConfigMap YAML key -> any project usages (Java, Kotlin, JS/TS, Python, Go, YAML, .env, etc.)
         val yamlKv = PsiTreeUtil.getParentOfType(sourceElement, YAMLKeyValue::class.java, false)
         if (yamlKv != null && ConfigMapIndexService.getInstance(project).isConfigMapDataKey(yamlKv)) {
+            val keyEl = yamlKv.key
+            if (keyEl == null || (sourceElement != keyEl && !PsiTreeUtil.isAncestor(keyEl, sourceElement, false))) {
+                return null
+            }
             val key = yamlKv.keyText.trim()
             val targets = UsageIndexService.getInstance(project)
                 .findUsagesForConfigMapKey(key)
