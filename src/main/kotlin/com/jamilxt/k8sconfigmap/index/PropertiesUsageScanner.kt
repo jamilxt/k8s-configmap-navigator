@@ -87,6 +87,22 @@ class PropertiesUsageScanner : UsageScanner {
         return extractKeysFromProperty(property, includeKey)
     }
 
+    override fun extractKeysForGotoDeclaration(
+        element: PsiElement,
+        offset: Int,
+        settings: NavigatorSettings
+    ): List<String> {
+        val property = PsiTreeUtil.getParentOfType(element, Property::class.java, false) ?: return emptyList()
+        // Do NOT intercept Ctrl+Click on the property key itself, so IntelliJ's built-in Show Usages
+        // (showing Java/Kotlin @Value usages + ConfigMap entries via PropertiesConfigMapReferencesSearch) works.
+        val keyEl = property.firstChild
+        if (keyEl != null && (element == keyEl || PsiTreeUtil.isAncestor(keyEl, element, false))) {
+            return emptyList()
+        }
+        val value = property.value ?: return emptyList()
+        return PropertyKeyNormalizer.extractPlaceholders(value).distinct()
+    }
+
     companion object {
         fun extractKeysFromProperty(property: Property, includeKey: Boolean): List<String> {
             val keys = mutableListOf<String>()

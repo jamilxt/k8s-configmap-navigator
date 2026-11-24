@@ -25,20 +25,58 @@ class ConfigMapKeyReferencesSearch : QueryExecutorBase<PsiReference, ReferencesS
         val target = queryParameters.elementToSearch as? YAMLKeyValue ?: return
         val project = target.project
         val cmIndex = ConfigMapIndexService.getInstance(project)
-        if (!cmIndex.isConfigMapDataKey(target)) return
 
-        val key = target.keyText.trim()
-        if (key.isEmpty()) return
+        if (cmIndex.isConfigMapDataKey(target)) {
+            val key = target.keyText.trim()
+            if (key.isEmpty()) return
 
-        val usages = UsageIndexService.getInstance(project).findUsagesForConfigMapKey(key)
+            val usages = UsageIndexService.getInstance(project).findUsagesForConfigMapKey(key)
+            val seen = mutableSetOf<PsiElement>()
+            for (usage in usages) {
+                val usageElement = usage.psiPointer.element ?: continue
+                if (!usageElement.isValid || !seen.add(usageElement)) continue
+                val range = TextRange(0, usageElement.textLength.coerceAtLeast(1))
+                val ref = object : PsiReferenceBase<PsiElement>(usageElement, range, true) {
+                    override fun resolve(): PsiElement = target
+                    override fun isReferenceTo(element: PsiElement): Boolean =
+                        element == target || element.manager.areElementsEquivalent(element, target)
+                    override fun handleElementRename(newElementName: String): PsiElement = element
+                    override fun bindToElement(element: PsiElement): PsiElement = this.element
+                }
+                if (!consumer.process(ref)) return
+            }
+            return
+        }
+
+        // Reverse: Find Usages / Show Usages on an application*.yml / bootstrap*.yml key -> include matching ConfigMap keys
+        val fileName = target.containingFile?.name.orEmpty()
+        val settings = com.jamilxt.k8sconfigmap.settings.NavigatorSettings.getInstance(project)
+        if (!settings.matchApplicationPropertyOverrides ||
+            !com.jamilxt.k8sconfigmap.index.YamlConfigUsageScanner.isAppConfigFile(fileName) ||
+            target.value is org.jetbrains.yaml.psi.YAMLMapping
+        ) {
+            return
+        }
+        val fullPath = com.jamilxt.k8sconfigmap.index.YamlConfigUsageScanner.computeYamlPropertyPath(target)
+        if (fullPath.isEmpty()) return
+
         val seen = mutableSetOf<PsiElement>()
-        for (usage in usages) {
-            val usageElement = usage.psiPointer.element ?: continue
-            if (!usageElement.isValid || !seen.add(usageElement)) continue
-            val range = TextRange(0, usageElement.textLength.coerceAtLeast(1))
-            val ref = object : PsiReferenceBase<PsiElement>(usageElement, range, true) {
+        for (entry in cmIndex.findEntriesByKey(fullPath)) {
+            val yamlKv = entry.psiPointer.element ?: continue
+            if (!yamlKv.isValid || !seen.add(yamlKv)) continue
+            val keyElement = yamlKv.key
+            val range = if (keyElement != null && keyElement.textRange.startOffset >= yamlKv.textRange.startOffset) {
+                val start = keyElement.textRange.startOffset - yamlKv.textRange.startOffset
+                TextRange(start, (start + keyElement.textLength).coerceAtLeast(start + 1))
+            } else {
+                TextRange(0, yamlKv.textLength.coerceAtLeast(1))
+            }
+            val ref = object : PsiReferenceBase<PsiElement>(yamlKv, range, true) {
                 override fun resolve(): PsiElement = target
-                override fun isReferenceTo(element: PsiElement): Boolean = element == target
+                override fun isReferenceTo(element: PsiElement): Boolean =
+                    element == target || element.manager.areElementsEquivalent(element, target)
+                override fun handleElementRename(newElementName: String): PsiElement = element
+                override fun bindToElement(element: PsiElement): PsiElement = this.element
             }
             if (!consumer.process(ref)) return
         }
