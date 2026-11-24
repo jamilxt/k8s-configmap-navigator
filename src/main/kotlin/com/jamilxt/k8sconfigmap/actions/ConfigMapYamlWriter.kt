@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
+import com.jamilxt.k8sconfigmap.core.PropertyKeyNormalizer
 import com.jamilxt.k8sconfigmap.model.ConfigMapTarget
 import org.jetbrains.yaml.psi.YAMLDocument
 import org.jetbrains.yaml.psi.YAMLKeyValue
@@ -59,9 +60,12 @@ object ConfigMapYamlWriter {
                             updateExistingKeyValue(document, existingKv, formattedValue)
                             status = WriteStatus.UPDATED
                         } else {
-                            val lastKv = dataMapping.keyValues.last()
-                            val indent = computeLineIndent(document, lastKv.textRange.startOffset)
-                            val insertOffset = lastKv.textRange.endOffset
+                            val anchorKv = findInsertionAnchor(dataMapping.keyValues.toList(), key.trim())
+                            val indent = computeLineIndent(document, anchorKv.textRange.startOffset)
+                            val anchorEndOffset = (anchorKv.textRange.endOffset - 1)
+                                .coerceAtLeast(anchorKv.textRange.startOffset)
+                            val anchorEndLine = document.getLineNumber(anchorEndOffset)
+                            val insertOffset = document.getLineEndOffset(anchorEndLine)
                             document.insertString(insertOffset, "\n$indent$formattedKey: $formattedValue")
                             status = WriteStatus.ADDED
                         }
@@ -144,6 +148,35 @@ object ConfigMapYamlWriter {
         val rootMapping = doc?.topLevelValue as? YAMLMapping ?: return null
         val dataMapping = rootMapping.getKeyValueByKey("data")?.value as? YAMLMapping ?: return null
         return dataMapping.getKeyValueByKey(key)
+    }
+
+    internal fun findInsertionAnchor(
+        existingKeyValues: List<YAMLKeyValue>,
+        newKey: String
+    ): YAMLKeyValue {
+        val newTokens = PropertyKeyNormalizer.tokenize(newKey)
+        if (newTokens.isEmpty()) return existingKeyValues.last()
+
+        var bestPrefixLen = 0
+        var bestAnchor: YAMLKeyValue? = null
+
+        for (kv in existingKeyValues) {
+            val existingTokens = PropertyKeyNormalizer.tokenize(kv.keyText)
+            val prefixLen = commonPrefixLength(newTokens, existingTokens)
+            if (prefixLen >= 1 && prefixLen >= bestPrefixLen) {
+                bestPrefixLen = prefixLen
+                bestAnchor = kv
+            }
+        }
+
+        return bestAnchor ?: existingKeyValues.last()
+    }
+
+    internal fun commonPrefixLength(a: List<String>, b: List<String>): Int {
+        val limit = minOf(a.size, b.size)
+        var i = 0
+        while (i < limit && a[i] == b[i]) i++
+        return i
     }
 
     internal fun formatYamlKey(key: String): String {

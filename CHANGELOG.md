@@ -10,6 +10,7 @@ All notable changes to **K8s ConfigMap Navigator** will be documented in this fi
 - Fixed `Ctrl+Click` on Kubernetes `ConfigMap` YAML *values* (e.g., `http://...` URLs) being hijacked instead of opening normally ([#10](https://github.com/jamilxt/k8s-configmap-navigator/issues/10)).
 
 ### Added
+- **Smart Property-Group Placement:** Adding a new property via the `+` gutter icon or **Add to K8s ConfigMap...** now places the key right after the most specific matching prefix group (preserving inline comments and indentation), falling back to the end of `data:` if no group matches ([#12](https://github.com/jamilxt/k8s-configmap-navigator/issues/12)).
 - **Combined Code & ConfigMap Usages:** `Ctrl+Click` (Show Usages) and `Alt+F7` (Find Usages) on `@Value`, `@ConfigProperty`, `@ConfigurationProperties` fields/parameters, and `application*.properties`/`.yml` keys now show **both** code/Lombok usages and matching Kubernetes `ConfigMap` entries together (while keeping Rename and Move refactorings safe on YAML files).
 
 ## [1.0.2] - 2026-11-23

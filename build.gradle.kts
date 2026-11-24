@@ -51,6 +51,7 @@ intellijPlatform {
         changeNotes = """
             <h3>1.0.3</h3>
             <ul>
+                <li>Added <b>smart property-group placement</b> when adding keys via the <code>+</code> gutter icon or <b>Add to K8s ConfigMap...</b>, inserting new keys right after the matching prefix group while preserving indentation and inline comments.</li>
                 <li>Fixed <code>Ctrl+Click</code> / <code>Cmd+Click</code> (Go to Declaration or Usages) on <code>@Value</code> and <code>@ConfigurationProperties</code> fields, parameters, methods, and types so IntelliJ's built-in <b>Show Usages</b> and Lombok getter/setter navigation are no longer intercepted.</li>
                 <li>Fixed <code>Ctrl+Click</code> on property keys in <code>.properties</code> and <code>application.yml</code> files so Java/Spring usages are preserved alongside matching <code>ConfigMap</code> entries in <b>Show Usages</b> and <b>Find Usages</b> (<code>Alt+F7</code>).</li>
                 <li>Fixed <b>Rename</b> (<code>Shift+F6</code>) on Kubernetes <code>ConfigMap</code> YAML keys failing after <i>"Looking for usages..."</i>, and restricted <code>Ctrl+Click</code> in ConfigMaps to keys only so URL values remain clickable.</li>
