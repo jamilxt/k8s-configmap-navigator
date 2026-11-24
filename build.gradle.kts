@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.jamilxt.k8sconfigmap"
-version = "1.0.2"
+version = "1.0.3"
 
 repositories {
     mavenCentral()
@@ -49,6 +49,11 @@ intellijPlatform {
         name = "K8s ConfigMap Navigator"
         version = project.version.toString()
         changeNotes = """
+            <h3>1.0.3</h3>
+            <ul>
+                <li>Fixed <code>Ctrl+Click</code> / <code>Cmd+Click</code> (Go to Declaration or Usages) on <code>@Value</code> and <code>@ConfigurationProperties</code> fields, parameters, methods, and types so IntelliJ's built-in <b>Show Usages</b> and Lombok getter/setter navigation are no longer intercepted.</li>
+                <li>Included matching Kubernetes <code>ConfigMap</code> entries alongside code/Lombok usages in <b>Show Usages</b> and <b>Find Usages</b> (<code>Alt+F7</code>) on config-bound fields and parameters.</li>
+            </ul>
             <h3>1.0.2</h3>
             <ul>
                 <li>Added <b>Add to K8s ConfigMap...</b> right-click context menu action and <code>+</code> gutter icon on missing config variables, with automatic <code>UPPER_SNAKE_CASE</code> conversion, default value pre-fill, multi-ConfigMap selection, and full Undo support.</li>

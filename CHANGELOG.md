@@ -2,6 +2,13 @@
 
 All notable changes to **K8s ConfigMap Navigator** will be documented in this file.
 
+## [1.0.3] - 2026-11-24
+### Fixed
+- Fixed `Ctrl+Click` / `Cmd+Click` (Go to Declaration or Usages) on `@Value` and `@ConfigurationProperties` fields, parameters, methods, and types so IntelliJ's built-in **Show Usages** and Lombok getter/setter navigation are no longer intercepted ([#6](https://github.com/jamilxt/k8s-configmap-navigator/issues/6)).
+
+### Added
+- **Combined Code & ConfigMap Usages:** `Ctrl+Click` (Show Usages) and `Alt+F7` (Find Usages) on `@Value`, `@ConfigProperty`, and `@ConfigurationProperties` fields/parameters now show **both** code/Lombok usages and matching Kubernetes `ConfigMap` entries together (while keeping Rename refactoring safe on YAML files).
+
 ## [1.0.2] - 2026-11-23
 ### Added
 - **Add to K8s ConfigMap (Context Menu & `+` Gutter Icon):** Right-click on any config variable (including `@Value`, `@ConfigurationProperties`, `@ConfigProperty`, `Environment.getProperty`, `System.getenv`, etc.) or click the muted blue `+` gutter icon on missing properties to add them directly to one or more Kubernetes `ConfigMap` YAML files with automatic `UPPER_SNAKE_CASE` conversion, default value pre-fill, multi-ConfigMap selection, and full `Ctrl+Z` undo support.

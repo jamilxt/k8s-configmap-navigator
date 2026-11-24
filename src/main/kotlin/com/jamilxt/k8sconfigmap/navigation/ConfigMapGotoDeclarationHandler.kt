@@ -30,7 +30,7 @@ class ConfigMapGotoDeclarationHandler : GotoDeclarationHandler {
         }
 
         // Direction 2: From any supported language or config file -> K8s ConfigMap definition(s)
-        val keys = UsageIndexService.getInstance(project).extractKeysAtElement(sourceElement, offset)
+        val keys = UsageIndexService.getInstance(project).extractKeysForGotoDeclaration(sourceElement, offset)
         if (keys.isEmpty()) return null
 
         val cmIndex = ConfigMapIndexService.getInstance(project)
